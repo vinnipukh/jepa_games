@@ -10,7 +10,7 @@ use std::path::PathBuf;
 
 use clap::Args;
 use statrs::distribution::{ChiSquared, ContinuousCDF};
-use water_sort_core::{GenConfig, MetricsConfig, Params};
+use water_sort_core::{GenConfig, MetricsConfig, Params, Tier};
 
 use crate::args::{GenSpec, parse_count};
 use crate::stats::{Cell, CellRun, Generated, Sampling, collect_samples, summarize};
@@ -42,6 +42,10 @@ pub struct CompareArgs {
     /// Reject puzzles with `opt_moves` above this (D16).
     #[arg(long)]
     pub max_opt: Option<u32>,
+    /// Compare within one difficulty tier (D16): each side's `opt_moves` band per configuration
+    /// from the core tier table, for that side's layout.
+    #[arg(long, conflicts_with_all = ["min_opt", "max_opt"])]
+    pub tier: Option<Tier>,
     #[arg(long, default_value_t = MetricsConfig::default().random_rollouts)]
     pub rollouts: u32,
     #[arg(long, default_value_t = 0)]
@@ -104,7 +108,15 @@ struct Side {
 }
 
 fn run_side(spec: GenSpec, params: Params, args: &CompareArgs, pool: &rayon::ThreadPool) -> Side {
-    let cfg = args.config();
+    let mut cfg = args.config();
+    if let Some(t) = args.tier {
+        // `run` checked every configuration against the tier table first.
+        let (min_opt, max_opt) = t
+            .opt_band(&params, spec.layout())
+            .expect("supported configuration");
+        cfg.min_opt = min_opt;
+        cfg.max_opt = max_opt;
+    }
     let sampling = Sampling {
         samples: args.samples,
         batch: 64,
@@ -132,6 +144,22 @@ pub fn run(args: &CompareArgs) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(threads)
         .build()?;
+    if let Some(t) = args.tier {
+        for &ParamsArg(p) in &args.configs {
+            for spec in [args.a, args.b] {
+                if t.opt_band(&p, spec.layout()).is_none() {
+                    return Err(format!(
+                        "--tier: {}x{}x{} is not supported in the {} layout",
+                        p.n_colors,
+                        p.capacity,
+                        p.n_empty,
+                        spec.layout()
+                    )
+                    .into());
+                }
+            }
+        }
+    }
     let mut sections = Vec::new();
     for &ParamsArg(params) in &args.configs {
         let a = run_side(args.a, params, args, &pool);
@@ -544,8 +572,13 @@ fn report(args: &CompareArgs, threads: usize, sections: &[String]) -> String {
         cfg.max_states,
         cfg.max_attempts,
         cfg.min_opt,
-        cfg.max_opt
-            .map_or_else(String::new, |m| format!(" --max-opt {m}")),
+        args.tier.map_or_else(
+            || {
+                cfg.max_opt
+                    .map_or_else(String::new, |m| format!(" --max-opt {m}"))
+            },
+            |t| format!(" --tier {t}"),
+        ),
         cfg.metrics.random_rollouts,
         args.base_seed,
     );
@@ -592,6 +625,7 @@ fn spec_arg(spec: GenSpec) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use water_sort_core::Layout;
 
     #[test]
     fn chi_square_detects_shift_and_accepts_equal() {
@@ -648,6 +682,7 @@ mod tests {
             max_attempts: 10_000,
             min_opt: 1,
             max_opt: None,
+            tier: None,
             rollouts: 8,
             base_seed: 1,
             out: Some(out),
@@ -658,6 +693,38 @@ mod tests {
         assert!(text.contains("## 4 colors, capacity 3, 2 empty"));
         assert!(text.contains("| opt_moves |"));
         assert!(text.contains("--a uniform:standard --b turan:scramble:40:extra=100:standard"));
+        // Within one tier: both sides only produce puzzles in the tier's band.
+        let tiered = CompareArgs {
+            b: "turan:search:500:distributed".parse().unwrap(),
+            tier: Some(Tier::Medium),
+            samples: 20,
+            out: Some(dir.join("tier")),
+            ..args.clone()
+        };
+        let text = std::fs::read_to_string(run(&tiered).unwrap()).unwrap();
+        assert!(text.contains("--tier medium"));
+        let p = tiered.configs[0].0;
+        let hist = text
+            .lines()
+            .find_map(|l| l.strip_prefix("- opt_moves histogram (value:A/B): `"))
+            .unwrap();
+        for tok in hist.trim_end_matches('`').split(' ') {
+            let (v, ab) = tok.split_once(':').unwrap();
+            let (a, b) = ab.split_once('/').unwrap();
+            let v: u32 = v.parse().unwrap();
+            if a != "0" {
+                assert_eq!(Tier::of(&p, Layout::Standard, v), Some(Tier::Medium));
+            }
+            if b != "0" {
+                assert_eq!(Tier::of(&p, Layout::Distributed, v), Some(Tier::Medium));
+            }
+        }
+        // A configuration outside the supported range is refused before any work.
+        let unsupported = CompareArgs {
+            configs: vec!["4x3x3".parse().unwrap()],
+            ..tiered
+        };
+        assert!(run(&unsupported).is_err());
         std::fs::remove_dir_all(dir).unwrap();
     }
 }

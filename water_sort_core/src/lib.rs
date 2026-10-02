@@ -18,6 +18,7 @@ pub mod stars;
 pub mod state;
 pub mod supported;
 pub mod symmetry;
+pub mod tiers;
 
 pub use canon::{canonical_full, canonical_hash, canonical_tubes, solver_key};
 pub use enumerate::{distributed_fills, standard_fills};
@@ -43,3 +44,4 @@ pub use supported::{
     is_supported_in, supported_rows,
 };
 pub use symmetry::is_symmetric;
+pub use tiers::{Tier, TierRow, UnknownTier, tier_row, tier_rows};
