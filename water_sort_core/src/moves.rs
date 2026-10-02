@@ -130,7 +130,6 @@ pub fn action_mask(s: &State) -> Vec<bool> {
 ///   interchangeable).
 ///
 /// Never used by the game itself.
-#[allow(dead_code)] // used by the solver
 pub(crate) fn solver_moves(s: &State, out: &mut Vec<Move>) {
     out.clear();
     let n = s.n_tubes();

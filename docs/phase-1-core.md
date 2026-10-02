@@ -161,7 +161,7 @@ pub struct DifficultyMetrics {
 3. [x] `moves.rs` reverse moves + round-trip proptest
 4. [x] `stars.rs` + table tests (including `opt = 30`, `opt = 1`, below-optimal), `Session`
 5. [x] `canon.rs` + brute-force reference for `n_colors ≤ 6` (min over all `n!` relabelings)
-6. [ ] `solver/bfs.rs`
+6. [x] `solver/bfs.rs`
 7. [ ] `solver/astar.rs` + BFS-equivalence test
 8. [ ] `sampling.rs`, `seed.rs` + golden vectors (fixed seed → fixed shuffle output, fixed inputs → fixed seeds)
 9. [ ] `generator.rs` types
