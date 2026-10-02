@@ -87,7 +87,13 @@ fn configs() -> [(&'static str, Params, GenConfig); 3] {
 fn generators() -> Vec<(&'static str, Turan)> {
     let mut out = Vec::new();
     for layout in Layout::ALL {
-        out.push(("scramble", Turan::new(TuranStrategy::default(), layout)));
+        out.push((
+            "scramble",
+            Turan::new(
+                TuranStrategy::scramble(TuranStrategy::DEFAULT_STEPS),
+                layout,
+            ),
+        ));
         out.push((
             "constrained",
             Turan::new(TuranStrategy::Constrained, layout),

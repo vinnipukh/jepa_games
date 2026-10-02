@@ -76,6 +76,8 @@ mod tests {
             "stats",
             "--generator",
             "turan",
+            "--strategy",
+            "scramble",
             "--steps",
             "80",
             "--layout",

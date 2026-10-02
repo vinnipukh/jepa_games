@@ -641,7 +641,7 @@ mod tests {
         let out = dir.join("cmp");
         let args = CompareArgs {
             a: "uniform".parse().unwrap(),
-            b: "turan".parse().unwrap(),
+            b: "turan:scramble".parse().unwrap(),
             configs: vec!["4x3x2".parse().unwrap()],
             samples: 40,
             max_states: 5_000_000,

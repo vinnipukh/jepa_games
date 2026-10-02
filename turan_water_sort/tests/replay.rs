@@ -51,7 +51,13 @@ fn check(generator: Turan, count: u64) {
 
 fn check_all(count: u64) {
     for layout in Layout::ALL {
-        check(Turan::new(TuranStrategy::default(), layout), count);
+        check(
+            Turan::new(
+                TuranStrategy::scramble(TuranStrategy::DEFAULT_STEPS),
+                layout,
+            ),
+            count,
+        );
         check(Turan::new(TuranStrategy::Constrained, layout), count);
         check(
             Turan::new(TuranStrategy::DEFAULT_REVERSE_SEARCH, layout),

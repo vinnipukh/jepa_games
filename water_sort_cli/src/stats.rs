@@ -872,7 +872,16 @@ mod tests {
 
     #[test]
     fn turan_cells_count_construction_rejections() {
-        let a = args(&["--generator", "turan", "--samples", "30", "--rollouts", "0"]);
+        let a = args(&[
+            "--generator",
+            "turan",
+            "--strategy",
+            "scramble",
+            "--samples",
+            "30",
+            "--rollouts",
+            "0",
+        ]);
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(2)
             .build()

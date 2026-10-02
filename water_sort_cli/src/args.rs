@@ -97,8 +97,8 @@ pub struct GenArgs {
     /// Initial-state layout (D14).
     #[arg(long, value_enum, default_value = "standard")]
     pub layout: LayoutArg,
-    /// Turan strategy.
-    #[arg(long, value_enum, default_value = "scramble")]
+    /// Turan strategy (default: reverse search, D16).
+    #[arg(long, value_enum, default_value = "reverse-search")]
     pub strategy: StrategyArg,
     /// Turan scramble: reverse pours from the solved state; pour walk: walk steps. Default:
     /// 40 (scramble), 160 (pour walk).
@@ -190,11 +190,12 @@ impl FromStr for GenSpec {
                     Some("walk") => TuranStrategy::PourWalk {
                         steps: number.unwrap_or(TuranStrategy::DEFAULT_WALK_STEPS),
                     },
-                    Some("search") => TuranStrategy::ReverseSearch {
+                    // No strategy name: the default strategy (D16), a number is its budget.
+                    Some("search") | None => TuranStrategy::ReverseSearch {
                         max_depth: depth,
                         max_states: number.unwrap_or(TuranStrategy::DEFAULT_SEARCH_STATES),
                     },
-                    _ => TuranStrategy::Scramble {
+                    Some(_) => TuranStrategy::Scramble {
                         steps: number.unwrap_or(TuranStrategy::DEFAULT_STEPS),
                         max_extra_steps: extra,
                     },
@@ -288,14 +289,14 @@ mod tests {
         );
         assert_eq!(
             spec("turan"),
-            Ok("scramble(steps=40,max_extra_steps=100,layout=standard)".into())
+            Ok("reverse_search(max_depth=300,max_states=10000,layout=standard)".into())
         );
         assert_eq!(
             spec("turan:scramble:80:distributed"),
             Ok("scramble(steps=80,layout=distributed)".into())
         );
         assert_eq!(
-            spec("turan:20:extra=5"),
+            spec("turan:scramble:20:extra=5"),
             Ok("scramble(steps=20,max_extra_steps=5,layout=standard)".into())
         );
         assert_eq!(
@@ -320,7 +321,14 @@ mod tests {
         let slug = |s: &str| s.parse::<GenSpec>().unwrap().slug();
         assert_eq!(slug("uniform"), "uniform");
         assert_eq!(slug("uniform:distributed"), "uniform_distributed");
-        assert_eq!(slug("turan:distributed"), "turan_scramble_distributed");
+        assert_eq!(
+            slug("turan:distributed"),
+            "turan_reverse_search_distributed"
+        );
+        assert_eq!(
+            slug("turan:scramble:distributed"),
+            "turan_scramble_distributed"
+        );
         assert_eq!(
             slug("turan:walk:distributed"),
             "turan_pour_walk_distributed"

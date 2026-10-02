@@ -80,9 +80,10 @@ impl TuranStrategy {
     }
 }
 
+/// `ReverseSearch { 300, 10_000 }`, the I2A / Boxoban method (D16; was `Scramble` before).
 impl Default for TuranStrategy {
     fn default() -> Self {
-        Self::scramble(Self::DEFAULT_STEPS)
+        Self::DEFAULT_REVERSE_SEARCH
     }
 }
 
@@ -390,7 +391,10 @@ mod tests {
     fn all() -> Vec<Turan> {
         let mut out = Vec::new();
         for layout in Layout::ALL {
-            out.push(Turan::new(TuranStrategy::default(), layout));
+            out.push(Turan::new(
+                TuranStrategy::scramble(TuranStrategy::DEFAULT_STEPS),
+                layout,
+            ));
             out.push(Turan::new(TuranStrategy::Constrained, layout));
             out.push(Turan::new(SEARCH, layout));
         }
