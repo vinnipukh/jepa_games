@@ -6,6 +6,8 @@
 pub mod canon;
 pub mod moves;
 pub mod params;
+pub mod sampling;
+pub mod seed;
 pub mod solver;
 pub mod stars;
 pub mod state;
@@ -16,6 +18,8 @@ pub use moves::{
     is_valid_reverse, legal_moves, reverse_moves, unapply,
 };
 pub use params::{MAX_CAP, MAX_TUBES, Params, ParamsError};
+pub use sampling::{bounded_u32, fisher_yates};
+pub use seed::{splitmix64, time_seed};
 pub use solver::{SolveResult, SolverLimits, heuristic, replay, solve, solve_astar, solve_bfs};
 pub use stars::{Session, StarConfig, StarError, stars, thresholds};
 pub use state::{EMPTY, State, StateError};

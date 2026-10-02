@@ -163,7 +163,7 @@ pub struct DifficultyMetrics {
 5. [x] `canon.rs` + brute-force reference for `n_colors ≤ 6` (min over all `n!` relabelings)
 6. [x] `solver/bfs.rs`
 7. [x] `solver/astar.rs` + BFS-equivalence test
-8. [ ] `sampling.rs`, `seed.rs` + golden vectors (fixed seed → fixed shuffle output, fixed inputs → fixed seeds)
+8. [x] `sampling.rs`, `seed.rs` + golden vectors (fixed seed → fixed shuffle output, fixed inputs → fixed seeds)
 9. [ ] `generator.rs` types
 10. [ ] `metrics.rs`
 11. [ ] Puzzle code encode/decode
