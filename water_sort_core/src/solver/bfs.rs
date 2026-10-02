@@ -44,7 +44,7 @@ impl KeySearch for Bfs<'_> {
                         }
                         queue.push_back(child_idx);
                     }
-                    Insert::Existing => {}
+                    Insert::Existing(_) => {}
                     Insert::Full => return arena.timeout(),
                 }
             }

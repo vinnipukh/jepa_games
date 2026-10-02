@@ -5,6 +5,7 @@
 //! solution is replayed on the caller's original labeled state, so its moves are real tube
 //! indices.
 
+mod astar;
 mod bfs;
 
 use core::hash::Hash;
@@ -18,6 +19,7 @@ use crate::moves::{Move, apply_unchecked, legal_moves};
 use crate::params::{MAX_CAP, Params};
 use crate::state::{EMPTY, State};
 
+pub use astar::solve_astar;
 pub use bfs::solve_bfs;
 
 /// Search limits.
@@ -81,6 +83,11 @@ impl SolveResult {
             | Self::Timeout { states_expanded } => *states_expanded,
         }
     }
+}
+
+/// Solves `s` optimally with A* ([`solve_astar`]).
+pub fn solve(s: &State, limits: &SolverLimits) -> SolveResult {
+    solve_astar(s, limits)
 }
 
 /// Admissible, consistent heuristic (D9): `segments - n_colors`.
@@ -186,7 +193,7 @@ struct Arena<K> {
 /// Result of inserting a successor into the arena.
 enum Insert {
     New(u32),
-    Existing,
+    Existing(u32),
     Full,
 }
 
@@ -220,8 +227,8 @@ impl<K: Key> Arena<K> {
     }
 
     fn insert(&mut self, key: K, parent: u32, g: u32) -> Insert {
-        if self.index.contains_key(&key) {
-            return Insert::Existing;
+        if let Some(&idx) = self.index.get(&key) {
+            return Insert::Existing(idx);
         }
         if self.nodes.len() as u64 >= self.limits.max_states {
             return Insert::Full;
