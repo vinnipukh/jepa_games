@@ -41,7 +41,8 @@ The toolchain is pinned in `rust-toolchain.toml` (1.99.0). `Cargo.lock` is commi
 
 - Every color has exactly `capacity` units, so free space is always `n_empty × capacity` slots. Supported: `n_empty` 1 or 2 only (D3, `MAX_SUPPORTED_EMPTY`), and `n_colors` limited per `SUPPORTED`. 0 empty tubes has no legal move; 3 is excluded.
 - Two layouts (D14): `Standard` (full tubes + whole empty tubes) and `Distributed` (free space spread over tubes, half-empty tubes allowed), in both generators (`water_sort_core::Layout`, Phase 3). Distributed limits: `SUPPORTED_DISTRIBUTED` / `is_supported_in` (D3 addendum, decided).
-- Uniform = labeled-uniform over accepted fills (D2). Turan = time-seeded strategies, default reverse scramble from a solved state (D1).
+- Uniform = labeled-uniform over accepted fills (D2). Turan = time-seeded strategies (D1); default `ReverseSearch` (I2A-style search over reverse pours keeping the best-scoring state), plus `Scramble`, `PourWalk` (distributed only) and `Constrained` (D16). A reverse walk alone cannot make more than `n_colors × (capacity − 1)` progressing steps (D16).
+- Difficulty tiers easy / medium / hard: `water_sort_core::Tier`, cut points from uniform's `opt_moves` distribution per configuration and layout (D16).
 
 ## Workflow
 

@@ -18,6 +18,7 @@ One command produces a large deduplicated puzzle dataset, its train/val/test spl
 | `puzzle_code` | str | |
 | `state` | fixed_size_binary(n_tubes × capacity) | row-major, bottom → top, EMPTY = 255 |
 | `opt_moves` | u32 | |
+| `tier` | enum `easy` / `medium` / `hard` | D16: `water_sort_core::Tier::of(params, layout, opt_moves)`, the same cut points for every generator |
 | `solution` | list<u16> | action index `from * n_tubes + to` |
 | `canonical_hash` | u64 | `canonical_full` (D8) |
 | `attempts` | u32 | |
@@ -38,7 +39,8 @@ water_sort_cli generate --generator uniform --count 1000000 \
 
 - **Seed derivation (both generators):** `seed_i = splitmix64(master_seed ⊕ i)`. Any record can be regenerated on its own, and the master seed is recorded in a `manifest.json`. When `--master-seed` is omitted, it comes from the generator's `fresh_seed`: OS entropy for uniform, the time seed for Turan.
 - **Parallelism:** rayon over chunks of indices. Each chunk is generated independently and then written **in index order** through a bounded channel to a single writer. The output is byte-identical regardless of thread count, and memory stays bounded at 1M records.
-- **Both generators:** `--layout standard|distributed` (D14, default `standard`). **Turan:** plus `--strategy scramble --steps N`. All recorded in `generator_variant`, the `layout` column and the manifest.
+- **Both generators:** `--layout standard|distributed` (D14, default `standard`). **Turan:** plus `--strategy reverse-search|scramble|pour-walk|constrained` and its parameters (default `reverse-search`, D16). All recorded in `generator_variant`, the `layout` column and the manifest.
+- **Difficulty tiers (D16):** every record stores its `tier`. Tiers are applied when sampling from the dataset (per-tier counts in the manifest and dedup report; `--tier` filters at read time), not by a generation-time band. `--tier` on `generate` is still available (it sets `min_opt`/`max_opt`, recorded in `gen_config`) for building a tier-only dataset.
 - **Manifest:** params, gen_config, generator id/version, counts, master seed, tool version, start/end time, split ranges, file list with sha256.
 
 ## Dedup
