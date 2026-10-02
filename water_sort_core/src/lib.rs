@@ -17,7 +17,8 @@ pub mod state;
 
 pub use canon::{canonical_full, canonical_hash, canonical_tubes, solver_key};
 pub use generator::{
-    Accepted, GenConfig, GenError, GeneratedPuzzle, Generator, MetricsConfig, Rejection, evaluate,
+    Accepted, Evaluation, GenConfig, GenError, GeneratedPuzzle, Generator, MetricsConfig, Observer,
+    Rejection, RejectionCounts, attempt_loop, evaluate, evaluate_counted,
 };
 pub use metrics::{DifficultyMetrics, compute_metrics};
 pub use moves::{

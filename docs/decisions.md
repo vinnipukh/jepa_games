@@ -105,3 +105,10 @@ Recorded while implementing `water_sort_core`. None of these changes a decision 
 - **Metrics RNG.** Core depends only on `rand_core`, so `compute_metrics::<R>` is generic over the RNG and both generators pass `ChaCha20Rng`, seeded from the canonical hash as planned. Rollouts and dead-end ratios run on `canonical_full(state)`, which makes all metrics except `states_expanded` invariant under tube and color permutation. Timeouts are left out of the dead-end ratio denominators.
 - **Solution replay** matches each search edge to a real move with the exact `canonical_full`, because the approximate `solver_key` can give symmetric states different keys.
 - **Golden vectors** store 64-bit values (seeds, hashes) as 16-digit hex strings, because JSON numbers above 2^53 are not exact in JavaScript.
+
+## D13 — Phase 2 implementation refinements — decided (2026-10-02)
+
+Recorded while implementing `uniform_water_sort` and `water_sort_cli stats`. None of these changes the generated distribution.
+
+- **Shared rejection loop and observer.** The roadmap loop (draw, validate, continue the same stream on rejection) lives once in core as `attempt_loop(cfg, observer, candidate)`, so uniform and turan cannot drift apart. The `Generator` trait gains a required `generate_observed<O: Observer>(params, seed, cfg, observer)`; `generate` and `generate_traced` (which returns the puzzle plus `RejectionCounts`) are provided on top of it. An `Observer` gets `before_attempt` / `after_attempt(&Evaluation)` hooks; it only watches, so it cannot change which attempt is accepted. The stats command times the solver through these hooks, which keeps the clock out of core (D1, D11).
+- **`evaluate_counted`** returns the `evaluate` outcome together with `states_expanded` for every outcome (rejections included), which the stats need. `evaluate` is unchanged.
