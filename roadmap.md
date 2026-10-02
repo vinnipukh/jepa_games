@@ -18,7 +18,8 @@ jepa_games/
 ├── roadmap.md
 ├── water_sort_core/            # state, move rules, solver, star metric, canonical hash, Generator trait
 ├── uniform_water_sort/         # Fisher-Yates + rejection sampling generator
-├── turan_water_sort/           # Turan generator (definition pending, see Phase 3)
+├── turan_water_sort/           # Turan generator: time-seeded, strategy-based (reverse scramble), see Phase 3
+├── docs/                       # per-phase plans + decision log
 ├── water_sort_cli/             # batch generation, validation, statistics commands
 ├── python/                     # PyO3 binding (maturin) + Gymnasium env + logger
 └── web/                        # WASM UI
@@ -28,12 +29,16 @@ jepa_games/
 
 ## Phase 0 — Workspace setup
 
-- [ ] Create the Cargo workspace and empty crates
-- [ ] Dependencies: `rand`, `rand_chacha`, `getrandom`, `rayon`, `serde`, `serde_json`
-- [ ] CI: `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test`
-- [ ] `#![forbid(unsafe_code)]` in `water_sort_core`
+- [x] Create the Cargo workspace and empty crates
+- [x] Dependencies: `rand`, `rand_chacha`, `getrandom`, `rayon`, `serde`, `serde_json` (current majors: `rand_core`/`rand_chacha` 0.10, `getrandom` 0.4; see `Cargo.lock`)
+- [x] CI: `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test` (GitHub Actions, Ubuntu + Windows)
+- [x] `#![forbid(unsafe_code)]` in `water_sort_core` (also forbidden workspace-wide)
 
 **Acceptance criterion:** `cargo test --workspace` passes with empty tests, CI is green.
+
+> **Status: done (2026-10-02).** Private repo `vinnipukh/jepa_games`, toolchain pinned to 1.99.0. Plan: [docs/phase-0-workspace.md](docs/phase-0-workspace.md).
+
+Detailed plans for every phase live in [docs/](docs/README.md). Decisions made after this roadmap was written are recorded in [docs/decisions.md](docs/decisions.md) (D1–D11) and override the text below where they differ.
 
 ---
 
@@ -58,6 +63,7 @@ jepa_games/
 - [ ] Tube order symmetry: sort the tubes before hashing.
 - [ ] Color permutation symmetry: relabel colors by order of first appearance (over the sorted tubes).
 - [ ] Two separate functions: `canonical_tubes(state)` (tube order only) and `canonical_full(state)` (tube order + color). The solver uses the latter, and so does dataset duplicate detection.
+- **Decision D8:** sort-then-relabel is not an exact canonical form (relabeling changes the sort order). `canonical_full` is the exact minimum over color relabelings and is used for dedup and splits. The solver uses a cheaper approximate `solver_key`. The hash is xxh3-64 over a fixed encoding.
 
 ### 1.4 Solver
 
@@ -65,6 +71,8 @@ jepa_games/
 - [ ] A* or IDA* with an admissible heuristic. Heuristic: the number of adjacent color changes within tubes. A legal pour never creates a new color change and removes at most one, so this value never exceeds the remaining optimal distance.
 - [ ] Output: `Solvable { opt_moves, solution: Vec<Move>, states_expanded }`, `Unsolvable { states_expanded }`, or `Timeout`.
 - [ ] Time and state-count limits are configurable.
+- **Decision D9:** heuristic changed to `segments − n_colors`. It is still admissible and never weaker than the color-change count.
+- **Decision D11:** generation uses the state-count limit only. A wall-clock limit would make accept/reject depend on machine speed.
 - [ ] Test: on 10,000 random small puzzles, A*/IDA* must return the same `opt_moves` as BFS.
 
 ### 1.5 Star metric
@@ -76,6 +84,7 @@ jepa_games/
   - 2★: `extra <= t2`, `t2 = max(t3 + 1, ceil(0.50 * opt))`
   - 1★: solved but exceeded `t2`
 - [ ] Coefficients (0.10 / 0.25 / 0.50) are read from config.
+- **Decision D5:** coefficients are stored as per-mille integers (100 / 250 / 500) and thresholds use integer `ceil`. In floating point, `0.10 * 30 = 3.0000000000000004`, which gives 4 instead of 3.
 - [ ] The case `player_moves < opt` returns a separate error/warning rather than panicking (it indicates a solver bug).
 - [ ] The counted value is the total number of pours made on that puzzle. Undo does not decrement the counter, restart does not reset it.
 
@@ -100,6 +109,8 @@ pub struct GeneratedPuzzle {
     pub attempts: u32,           // how many attempts rejection sampling needed
 }
 ```
+
+**Decision D7:** the trait keeps `seed: u64` and adds `variant()` (sub-type, e.g. `scramble(steps=40)`), `fresh_seed(now_nanos)`, a `GenConfig` argument and a `Result` return. `GeneratedPuzzle` also gets `generator_variant` and a `puzzle_code` (compact encoding of the initial state). **Decision D10:** core provides its own `bounded_u32` + Fisher-Yates so results are bit-identical on native, wasm32 and Python. A **reverse move** (un-pour) is added to the rules for the Turan scramble.
 
 ### 1.7 Difficulty metrics
 
@@ -127,7 +138,7 @@ pub struct GeneratedPuzzle {
 
 - [ ] For a small configuration (e.g. 2 colors, capacity 2, 1 empty tube), enumerate all solvable states that pass the filters.
 - [ ] Draw enough samples from the generator and run a chi-square test. The test runs in CI.
-- [ ] Note: Fisher-Yates is uniform over labeled configurations (where tube order matters). It is not uniform over canonical classes, because the classes have different sizes. See Open decisions for which one is targeted.
+- [ ] Note: Fisher-Yates is uniform over labeled configurations (where tube order matters). It is not uniform over canonical classes, because the classes have different sizes. **Decided (D2): labeled-uniform is the target.**
 
 ### 2.3 Measurements
 
@@ -141,7 +152,13 @@ pub struct GeneratedPuzzle {
 
 ## Phase 3 — `turan_water_sort`
 
-> **Decision pending.** How the Turan generator differs from the uniform one has not been defined yet. This phase should not start until the definition is settled.
+> **Decided (D1, 2026-10-02).** Turan is a time-seeded, strategy-based generator. The goal is variation in generation type at minimal code cost.
+> - **Seed:** `splitmix64(now_nanos ^ splitmix64(counter))`. The atomic counter prevents identical seeds within one clock tick. The seed is recorded, so every puzzle is reproducible.
+> - **RNG:** `ChaCha20Rng`, the same as uniform.
+> - **Default strategy `Scramble { steps }`:** random reverse pours from a solved state, then a return to the standard layout (full tubes + empty tubes). Solvable by construction, with a different distribution from uniform over the same set of puzzles.
+> - **Optional strategy `Constrained`:** Fisher-Yates that rejects vertically adjacent same-color units.
+>
+> Plan: [docs/phase-3-turan.md](docs/phase-3-turan.md).
 
 Whatever the definition turns out to be, the following conditions apply:
 
@@ -245,11 +262,14 @@ This phase is outside the Rust side; only the requirements on the data interface
 
 ## Open decisions
 
-1. **Definition of the Turan generator.** Blocks Phase 3.
-2. **Uniform over which space?** Labeled configurations (tube order matters, which Fisher-Yates gives naturally) or canonical classes? Labeled-uniform produces permutations of the same puzzle as separate samples; canonical-uniform gives every structural puzzle equal weight but needs an extra correction (rejection weighted by class size).
-3. **Supported configuration range.** To be determined from the Phase 2.3 measurements: the largest `n_colors` for which the solver reliably finds the optimal solution in acceptable time.
-4. **Move limit.** The `k * opt_moves` value at which an episode is truncated.
-5. **Star coefficients.** 0.10 / 0.25 / 0.50 are starting values; to be updated as human player data comes in.
+Full log with reasoning: [docs/decisions.md](docs/decisions.md).
+
+1. **Definition of the Turan generator.** ✅ Decided (D1): time-seeded, strategy-based; default reverse scramble from a solved state.
+2. **Uniform over which space?** ✅ Decided (D2): labeled configurations. Phase 2.3 measures the fraction of symmetric puzzles; canonical correction only if that fraction matters.
+3. **Supported configuration range.** ⏳ Pending, from Phase 2.3 measurements. Proposed criterion: solver p99 < 1 s and timeout rate < 0.1 %.
+4. **Move limit.** Proposed (D4): `k = 4`, revisit after the RL baseline.
+5. **Star coefficients.** Proposed (D5): 0.10 / 0.25 / 0.50 as per-mille integers; to be updated as human player data comes in.
+6. **CI.** ✅ Decided (D6): GitHub Actions, Ubuntu + Windows.
 
 ## References
 
