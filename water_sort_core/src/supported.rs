@@ -4,8 +4,10 @@
 //!
 //! Derived from `reports/uniform_stats.md` (1000 uniform puzzles per cell, `max_states` 5e6,
 //! release build). A cell is supported when every sample generated within `max_attempts`, the
-//! solver p99 is below 1 s (per attempt and over accepted puzzles), and the timeout rate is
-//! below 0.1 %. In every measured row the supported cells form a prefix of `n_colors`.
+//! solver p99 is below 1 s (per attempt and over accepted puzzles), the p99 time to generate one
+//! puzzle (all attempts) is below 1 s, the timeout rate is below 0.1 %, and the attempts p99 is
+//! at most a tenth of `max_attempts`. In every measured row the supported cells form a prefix of
+//! `n_colors`.
 
 use crate::params::Params;
 
@@ -32,10 +34,10 @@ pub const SUPPORTED: &[SupportedRow] = &[
     row(3, 1, 12),
     row(3, 2, 12),
     row(3, 3, 10),
-    row(4, 1, 11),
+    row(4, 1, 9),
     row(4, 2, 11),
     row(4, 3, 8),
-    row(5, 1, 9),
+    row(5, 1, 7),
     row(5, 2, 9),
     row(5, 3, 6),
 ];
@@ -67,6 +69,8 @@ mod tests {
         assert!(is_supported(&p(12, 3, 1)));
         assert!(is_supported(&p(11, 4, 2)));
         assert!(!is_supported(&p(12, 4, 2)));
+        assert!(is_supported(&p(9, 4, 1)));
+        assert!(!is_supported(&p(10, 4, 1)));
         assert!(is_supported(&Params::with_colors(8)));
         assert!(!is_supported(&p(1, 4, 2)));
         assert!(!is_supported(&p(5, 6, 2)));

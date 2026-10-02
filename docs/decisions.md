@@ -36,29 +36,34 @@ Decision: labeled-uniform as the target, plus a measurement in Phase 2.3 of the 
 
 ## D3 — Supported configuration range — proposed (2026-10-02, from Phase 2.3)
 
-Set from measurements. Criterion: solver p99 < 1 s and state-limit hit rate < 0.1 % in release mode.
+Set from measurements. Criterion: solver p99 < 1 s, time to generate one puzzle p99 < 1 s, state-limit hit rate < 0.1 %, and enough attempt headroom, all in release mode.
 
 Evidence: [`reports/uniform_stats.md`](../reports/uniform_stats.md) (`water_sort_cli stats`, uniform generator, 1000 puzzles per cell, `max_states` 5e6, `max_attempts` 10 000, `min_opt` 1, base seed 20261002). Measured on a 14-core Windows 11 desktop with 8 worker threads, **not** on the CI runner; timings under parallel load are pessimistic compared with a single interactive solve. A cell counts as supported when all of these hold:
 
 - every sample generated within `max_attempts` (no `TooManyAttempts`);
 - solver p99 < 1 s, both per attempt (all outcomes) and over the accepted puzzles;
-- timeout rate < 0.1 % of attempts.
+- p99 time to generate one puzzle (all attempts plus metrics) < 1 s;
+- timeout rate < 0.1 % of attempts;
+- attempts p99 ≤ `max_attempts` / 10 (≤ 1000). The tail of a 1M-puzzle batch (Phase 4) must not reach `TooManyAttempts`.
+
+The last two conditions were added at PR #2 review. The first version checked only per-attempt solver time, which is blind to `n_empty = 1`. There, each attempt is cheap, but a puzzle can take thousands of attempts. For example, 9 × 5 × 1 had a whole-generation p99 of 1.69 s, and 11 × 4 × 1 had an attempts p99 of 3503 out of 10 000. The report was re-scored from the same measurements; no re-run was needed.
 
 Proposed supported range (`n_colors` from 2 up to):
 
 | capacity \ `n_empty` | 1 | 2 | 3 |
 |---|---|---|---|
 | 3 | 12 | 12 | 10 |
-| 4 | 11 | 11 | 8 |
-| 5 | 9 | 9 | 6 |
+| 4 | 9 | 11 | 8 |
+| 5 | 7 | 9 | 6 |
 
 In every row the supported cells are a prefix of `n_colors`. The table is `water_sort_core::SUPPORTED` (`is_supported(&params)`), and a CLI test checks it against the committed report cell by cell.
 
 What limits each row:
 
-- **`n_empty = 1`: rejection, not solving.** Unsolvable fills dominate: 99.8 % of attempts at 12 colors / capacity 4, and over 99.98 % at 10 colors / capacity 5. Each attempt is cheap (p99 ≈ 2 ms), but samples start to exceed the 10 000-attempt limit (12 × 4 × 1, 10 × 5 × 1).
+- **`n_empty = 1`: rejection, not solving.** Unsolvable fills dominate: 99.8 % of attempts at 12 colors / capacity 4, and over 99.98 % at 10 colors / capacity 5. Each attempt is cheap (p99 ≈ 2 ms), but the number of attempts per puzzle explodes. The attempts-headroom condition bounds this row: 10 × 4 × 1 needs 1366 attempts at p99, and 8 × 5 × 1 needs 1180. Beyond those, samples start to exceed the 10 000-attempt limit outright (12 × 4 × 1, 10 × 5 × 1).
 - **`n_empty = 2, 3`: solver time.** Rejections are essentially zero, but A* cost grows quickly with colors, and faster with more empty tubes (more branching). Past the bound, p99 goes over 1 s first, then timeouts appear (≈ 0.2 % at 12 × 3 × 3 and 10 × 4 × 3, 3.3 % at 11 × 4 × 3, 11 % at 10 × 5 × 3).
 - **Borderline:** 12 × 4 × 2 measured p99 = 1003 ms, so it is just outside. On an unloaded machine it would probably pass. Raising it is a judgment call for the user.
+- **A third empty tube buys little.** With the same fills, the `opt_moves` histograms for `n_empty` 2 and 3 are nearly identical, while solver cost is 10–40× higher. `n_empty = 3` configurations are unlikely to be worth using for datasets.
 
 Status stays **proposed** until the user confirms; re-measuring on the CI runner is an option.
 
@@ -138,6 +143,7 @@ Recorded while implementing `uniform_water_sort` and `water_sort_cli stats`. Non
 
 - **Shared rejection loop and observer.** The roadmap loop (draw, validate, continue the same stream on rejection) lives once in core as `attempt_loop(cfg, observer, candidate)`, so uniform and turan cannot drift apart. The `Generator` trait gains a required `generate_observed<O: Observer>(params, seed, cfg, observer)`; `generate` and `generate_traced` (which returns the puzzle plus `RejectionCounts`) are provided on top of it. An `Observer` gets `before_attempt` / `after_attempt(&Evaluation)` hooks; it only watches, so it cannot change which attempt is accepted. The stats command times the solver through these hooks, which keeps the clock out of core (D1, D11).
 - **`evaluate_counted`** returns the `evaluate` outcome together with `states_expanded` for every outcome (rejections included), which the stats need. `evaluate` is unchanged.
-- **`stats` measurement rules.** Solver time and `states_expanded` are reported per attempt (every outcome), plus a p99 over accepted puzzles only; D3 requires both p99s below 1 s. Samples run in fixed batches of 64 independent of the thread count, so every non-timing column is deterministic. To bound the run time, a cell stops early after ≥ 10 timeouts with a timeout rate above 1 % (10× the D3 limit), after 10 samples that hit `max_attempts`, or after a 900 s budget; larger `n_colors` in the same `(capacity, n_empty)` row are then skipped. Every stopped or skipped cell is unsupported. Each cell uses the same seed list `splitmix64(base_seed ^ i)`, so cells with the same `(n_colors, capacity)` share their first fills; this is visible as identical `opt_moves` histograms for `n_empty` 2 and 3, where nothing is rejected.
+- **`stats` measurement rules.** Solver time and `states_expanded` are reported per attempt (every outcome), plus a p99 over accepted puzzles only; D3 requires both p99s below 1 s. Samples run in fixed batches of 64 independent of the thread count, so every non-timing column is deterministic. To bound the run time, a cell stops early after ≥ 10 timeouts with a timeout rate above 1 % (10× the D3 limit), after 10 samples that hit `max_attempts`, or after a 900 s budget; larger `n_colors` in the same `(capacity, n_empty)` row are then skipped. Every stopped or skipped cell is unsupported. Each cell uses the same seed list `splitmix64(base_seed ^ i)`, so cells with the same `(n_colors, capacity)` share their first fills; this shows up as nearly identical `opt_moves` histograms for `n_empty` 2 and 3, where nothing is rejected (an extra empty tube rarely shortens the optimum).
+- **D3 criterion tightened at review** (see D3): it also requires a whole-generation p99 < 1 s and attempts p99 ≤ `max_attempts / 10` (`ATTEMPTS_HEADROOM`). The Markdown report gains a `gen ms p50 / p99` column.
 - **`standard_fills` is public in core** (not a test-only helper), so the uniform crate's tests can enumerate the accepted set with the same `evaluate`.
 - **The 2-color uniformity smoke test uses its own negative control.** Its accepted set (4 states) is so symmetric that the off-by-one bound (Sattolo) still hits it uniformly (chi² ≈ 0). It uses a second off-by-one bug instead (the loop starts at `len - 2`, so the last unit never moves). The 3-color test keeps the Sattolo control.

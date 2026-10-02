@@ -75,7 +75,7 @@ Per `(n_colors, capacity, n_empty)` cell:
 
 Parallelized with rayon over samples (seeds `base_seed + i`). Results are deterministic apart from the timing columns.
 
-The supported range (D3) is the set of cells meeting the criterion (proposed: p99 < 1 s, timeout rate < 0.1 %). It goes into `docs/decisions.md` and into a `SUPPORTED` table in `water_sort_core`, which the CLI, Python, and web check against.
+The supported range (D3) is the set of cells meeting the criterion (proposed: solver p99 < 1 s per attempt and per accepted puzzle, whole-generation p99 < 1 s, timeout rate < 0.1 %, attempts p99 ≤ `max_attempts` / 10). It goes into `docs/decisions.md` and into a `SUPPORTED` table in `water_sort_core`, which the CLI, Python, and web check against.
 
 ## Tasks
 
