@@ -36,7 +36,7 @@ jepa_games/
 
 **Acceptance criterion:** `cargo test --workspace` passes with empty tests, CI is green.
 
-> **Status: done (2026-10-02).** Private repo `vinnipukh/jepa_games`, toolchain pinned to 1.99.0. Plan: [docs/phase-0-workspace.md](docs/phase-0-workspace.md).
+> **Status: done (2026-10-02).** Private repo `vinnipukh/jepa_games`, toolchain pinned to 1.99.0. Plan: [docs/phases/phase-0-workspace/PLAN.md](docs/phases/phase-0-workspace/PLAN.md).
 
 Detailed plans for every phase live in [docs/](docs/README.md). Decisions made after this roadmap was written are recorded in [docs/decisions.md](docs/decisions.md) (D1–D12) and override the text below where they differ.
 
@@ -122,7 +122,7 @@ pub struct GeneratedPuzzle {
 
 **Acceptance criterion:** Unit tests for rules, solver and the star function; property-based tests (`proptest`) for "unit counts are preserved after every legal move", "applying the solution sequence reaches a solved state", and "the canonical hash is invariant under tube permutation and color permutation".
 
-> **Status: done (2026-10-02).** Plan: [docs/phase-1-core.md](docs/phase-1-core.md). Implementation refinements are recorded in D12.
+> **Status: done (2026-10-02).** Plan: [docs/phases/phase-1-core/PLAN.md](docs/phases/phase-1-core/PLAN.md). Implementation refinements are recorded in D12.
 
 ---
 
@@ -160,7 +160,7 @@ pub struct GeneratedPuzzle {
 > - **Default strategy `Scramble { steps }`:** random reverse pours from a solved state, then a return to the standard layout (full tubes + empty tubes). Solvable by construction, with a different distribution from uniform over the same set of puzzles.
 > - **Optional strategy `Constrained`:** Fisher-Yates that rejects vertically adjacent same-color units.
 >
-> Plan: [docs/phase-3-turan.md](docs/phase-3-turan.md).
+> Plan: [docs/phases/phase-3-turan/PLAN.md](docs/phases/phase-3-turan/PLAN.md).
 
 Whatever the definition turns out to be, the following conditions apply:
 
