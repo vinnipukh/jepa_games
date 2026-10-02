@@ -57,7 +57,8 @@ KEY REQUIREMENTS (details in PLAN.md)
   fixture dataset.
 - Run the 1M-puzzle acceptance run on a configuration from the supported range (propose one,
   e.g. 6 colors / capacity 4 / 2 empty, record wall time and file sizes in the report and a
-  D-entry with status proposed). Do not commit the dataset itself (data/ is gitignored); commit
+  D-entry with status proposed). D3 is decided: only 1 or 2 empty tubes are supported, and 2 is
+  the primary configuration. Do not commit the dataset itself (data/ is gitignored); commit
   the manifest and the dedup report.
 
 WORK METHOD

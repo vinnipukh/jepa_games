@@ -34,7 +34,7 @@ The two differ only through class sizes. A canonical class contains `(n_tubes! �
 
 Decision: labeled-uniform as the target, plus a measurement in Phase 2.3 of the fraction of generated puzzles with `|Aut| > 1` for each configuration. If that fraction is non-negligible in the supported range, add an optional `--canonical-uniform` mode that accepts a sample with probability `1/|Aut|`.
 
-## D3 — Supported configuration range — proposed (2026-10-02, from Phase 2.3)
+## D3 — Supported configuration range — decided (2026-10-02): 1–2 empty tubes, table below
 
 Set from measurements. Criterion: solver p99 < 1 s, time to generate one puzzle p99 < 1 s, state-limit hit rate < 0.1 %, and enough attempt headroom, all in release mode.
 
@@ -48,9 +48,9 @@ Evidence: [`reports/uniform_stats.md`](../reports/uniform_stats.md) (`water_sort
 
 The last two conditions were added at PR #2 review. The first version checked only per-attempt solver time, which is blind to `n_empty = 1`. There, each attempt is cheap, but a puzzle can take thousands of attempts. For example, 9 × 5 × 1 had a whole-generation p99 of 1.69 s, and 11 × 4 × 1 had an attempts p99 of 3503 out of 10 000. The report was re-scored from the same measurements; no re-run was needed.
 
-Proposed supported range (`n_colors` from 2 up to):
+Supported range (`n_colors` from 2 up to):
 
-| capacity \ `n_empty` | 1 | 2 | 3 |
+| capacity \ `n_empty` | 1 | 2 | 3 (measured, excluded) |
 |---|---|---|---|
 | 3 | 12 | 12 | 10 |
 | 4 | 9 | 11 | 8 |
@@ -65,7 +65,7 @@ What limits each row:
 - **Borderline:** 12 × 4 × 2 measured p99 = 1003 ms, so it is just outside. On an unloaded machine it would probably pass. Raising it is a judgment call for the user.
 - **A third empty tube buys little.** With the same fills, the `opt_moves` histograms for `n_empty` 2 and 3 are nearly identical, while solver cost is 10–40× higher. `n_empty = 3` configurations are unlikely to be worth using for datasets.
 
-Status stays **proposed** until the user confirms; re-measuring on the CI runner is an option.
+**Decided (2026-10-02, user):** only `n_empty` 1 and 2 are supported (`MAX_SUPPORTED_EMPTY = 2`), with the limits above. `n_empty = 0` has no legal move at all. `n_empty = 3` is excluded by policy even where it passed the criterion: it barely changes `opt_moves` but costs 10–40× more solver time, and 75 % of the Phase 2.3 measurement time. The primary configuration is `n_empty = 2` (the classic game); `n_empty = 1` is an optional harder variant. Sweeps and comparisons use `--empty 1..=2` (the `stats` default). The 12 × 4 × 2 borderline cell stays out.
 
 D2 follow-up (same report): the fraction of generated puzzles with a nontrivial symmetry is large only for 2 colors (13–35 %) and 3 colors (0.5–10 %). From 4 colors on it is ≤ 9 % at capacity 3 and ≤ 1.6 % at capacity 4 and 5, and it falls toward 0 as colors increase. Recommendation: no `--canonical-uniform` mode for now. The labeled/canonical gap matters only for tiny configurations.
 
