@@ -50,7 +50,7 @@ pub const SUPPORTED: &[SupportedRow] = &[
 /// The supported range for [`Layout::Distributed`] (D3 addendum, **proposed** in Phase 3; the
 /// user decides). Measured with `reports/uniform_distributed_stats.md` (cloud machine, timings
 /// scaled by the 1.28× calibration factor against the desktop that measured [`SUPPORTED`], see
-/// `reports/uniform_standard_calibration_cloud.csv`). Spreading the free space makes far fewer
+/// `reports/uniform_standard_calibration_cloud.csv`). Spreading the free space makes fewer
 /// fills unsolvable (one more color at capacity 5 with one empty tube), but costs the solver
 /// more with two empty tubes (one color fewer at capacity 5).
 pub const SUPPORTED_DISTRIBUTED: &[SupportedRow] = &[
