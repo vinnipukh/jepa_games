@@ -109,17 +109,17 @@ The uniform construction for the chosen layout, plus one rejection rule: no tube
 
 ## Tasks
 
-1. [ ] Core: `Layout`, `State::from_heights`, `bounded_u64`, `sample_heights` (DP, exact), `distributed_fills`, layout checks + tests
-2. [ ] Uniform: `layout` field, `Distributed` construction; Phase 2 golden vectors unchanged; new golden vectors for `Distributed`
-3. [ ] Uniformity chi-square for `Distributed` on small configs (2×2×1, 3×3×1) via `distributed_fills`, with a failing negative control: heights drawn tube by tube, each uniform over its feasible range given the units left. That is biased. Do not use "independent heights, reject if the sum is wrong" as the control: it is exactly uniform.
-4. [ ] `TuranStrategy`, `Turan { strategy, layout }`, `fresh_seed`
-5. [ ] `Scramble` construction for both layouts + label/tube shuffle
-6. [ ] Golden test: 20 fixed seeds × 3 configs × each (strategy, layout)
-7. [ ] `stats`: `--layout`, `--generator turan --strategy ...`
-8. [ ] Distributed measurement grid for uniform; propose distributed limits (D3 addendum)
-9. [ ] `steps` sweep per layout; choose default `steps` per supported configuration (D15, proposed)
-10. [ ] `compare` subcommand + reports
-11. [ ] (optional) `Constrained` strategy
+1. [x] Core: `Layout`, `State::from_heights`, `bounded_u64`, `sample_heights` (DP, exact), `distributed_fills`, layout checks + tests
+2. [x] Uniform: `layout` field, `Distributed` construction; Phase 2 golden vectors unchanged; new golden vectors for `Distributed`
+3. [x] Uniformity chi-square for `Distributed` on small configs (2×2×1, 3×3×1) via `distributed_fills`, with a failing negative control: heights drawn tube by tube, each uniform over its feasible range given the units left. That is biased. Do not use "independent heights, reject if the sum is wrong" as the control: it is exactly uniform.
+4. [x] `TuranStrategy`, `Turan { strategy, layout }`, `fresh_seed`
+5. [x] `Scramble` construction for both layouts + label/tube shuffle
+6. [x] Golden test: 20 fixed seeds × 3 configs × each (strategy, layout)
+7. [x] `stats`: `--layout`, `--generator turan --strategy ...`
+8. [x] Distributed measurement grid for uniform; propose distributed limits (D3 addendum)
+9. [x] `steps` sweep per layout; choose default `steps` per supported configuration (D15, proposed)
+10. [x] `compare` subcommand + reports
+11. [x] (optional) `Constrained` strategy
 
 ## Tests
 
@@ -135,6 +135,10 @@ The uniform construction for the chosen layout, plus one rejection rule: no tube
 ## Acceptance
 
 Roadmap conditions: implements `Generator`, no rules outside core, the same solver and `opt_moves`, deterministic for a given seed, Phase 2.3 measurements side by side with uniform, distribution difference measured (`opt_moves` histogram, color-change histogram, random-policy failure rate). Plus: both layouts in both generators, distributed uniformity test passing with a failing control, comparison reports and proposed `steps` defaults and distributed limits committed.
+
+## Status
+
+Implemented (2026-10-02). Refinements and the measured behavior of the reverse walk (absorbed after about `opt_moves` steps, so `steps` saturates at 20–40 and the standard layout is reached only when the absorbing state already is one) are recorded in D15. The distributed supported range (D3 addendum) and the Turan defaults (D15) are **proposed**. Reports: `reports/uniform_distributed_stats.md`, `reports/turan_steps_sweep.md`, `reports/uniform_vs_turan_standard.md`, `reports/uniform_vs_turan_distributed.md`, `reports/uniform_standard_vs_distributed.md`.
 
 ## Risks / open points
 
