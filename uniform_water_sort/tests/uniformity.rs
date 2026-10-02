@@ -107,7 +107,12 @@ fn test_uniformity(params: Params, sample: impl Fn(u64) -> State) -> ChiSquare {
 }
 
 fn uniform(params: Params) -> impl Fn(u64) -> State {
-    move |seed| Uniform.generate(&params, seed, &CFG).unwrap().state
+    move |seed| {
+        Uniform::default()
+            .generate(&params, seed, &CFG)
+            .unwrap()
+            .state
+    }
 }
 
 /// The uniform generator with a buggy shuffle in place of Fisher-Yates.

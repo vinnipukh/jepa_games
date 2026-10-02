@@ -447,7 +447,9 @@ pub fn run(args: &StatsArgs) -> Result<Vec<Cell>, Box<dyn std::error::Error>> {
                     Cell::empty(params, Status::Skipped)
                 } else {
                     match args.generator {
-                        GeneratorKind::Uniform => run_cell(&Uniform, params, args, &pool),
+                        GeneratorKind::Uniform => {
+                            run_cell(&Uniform::default(), params, args, &pool)
+                        }
                     }
                 };
                 stopped |= cell.status.stopped();
@@ -713,8 +715,8 @@ mod tests {
             capacity: 3,
             n_empty: 1,
         };
-        let one = run_cell(&Uniform, p, &a, &pool(1));
-        let four = run_cell(&Uniform, p, &a, &pool(4));
+        let one = run_cell(&Uniform::default(), p, &a, &pool(1));
+        let four = run_cell(&Uniform::default(), p, &a, &pool(4));
         let strip = |c: &Cell| {
             let mut c = c.clone();
             for v in [
@@ -771,7 +773,7 @@ mod tests {
             capacity: 4,
             n_empty: 2,
         };
-        let cell = run_cell(&Uniform, p, &a, &pool);
+        let cell = run_cell(&Uniform::default(), p, &a, &pool);
         assert_eq!(cell.status, Status::StoppedTimeouts);
         assert_eq!(cell.samples, 16);
         assert!(!cell.supported());
@@ -799,7 +801,7 @@ mod tests {
             capacity: 3,
             n_empty: 1,
         };
-        let cell = run_cell(&Uniform, p, &a, &pool);
+        let cell = run_cell(&Uniform::default(), p, &a, &pool);
         assert_eq!(cell.status, Status::StoppedFailures);
         assert_eq!(cell.samples, 32);
         assert!(cell.failed >= 10 && !cell.supported());
