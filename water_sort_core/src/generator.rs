@@ -208,6 +208,9 @@ pub enum Rejection {
     BelowMinOpt {
         opt_moves: u32,
     },
+    /// The generator's construction gave up on this attempt before validation (e.g. Turan's
+    /// scramble did not return to the standard layout within its step limit, D15).
+    Construction,
 }
 
 /// A candidate that passed validation, with its optimal solution.
@@ -289,6 +292,7 @@ pub struct RejectionCounts {
     pub unsolvable: u32,
     pub timeout: u32,
     pub below_min_opt: u32,
+    pub construction: u32,
 }
 
 impl RejectionCounts {
@@ -299,13 +303,18 @@ impl RejectionCounts {
             Rejection::Unsolvable => &mut self.unsolvable,
             Rejection::Timeout => &mut self.timeout,
             Rejection::BelowMinOpt { .. } => &mut self.below_min_opt,
+            Rejection::Construction => &mut self.construction,
         };
         *slot += 1;
     }
 
     /// All rejections.
     pub const fn total(&self) -> u32 {
-        self.already_solved + self.unsolvable + self.timeout + self.below_min_opt
+        self.already_solved
+            + self.unsolvable
+            + self.timeout
+            + self.below_min_opt
+            + self.construction
     }
 }
 
@@ -330,9 +339,31 @@ pub fn attempt_loop<O: Observer>(
     observer: &mut O,
     mut candidate: impl FnMut() -> State,
 ) -> Result<(State, u32, Accepted), GenError> {
+    try_attempt_loop(cfg, observer, || Some(candidate()))
+}
+
+/// [`attempt_loop`] for constructions that can fail: a `None` candidate is a rejected attempt
+/// ([`Rejection::Construction`], no solver run). It counts towards `max_attempts` and is
+/// reported to `observer` like any other rejection (D15).
+///
+/// # Errors
+///
+/// [`GenError::TooManyAttempts`] if every candidate is rejected.
+pub fn try_attempt_loop<O: Observer>(
+    cfg: &GenConfig,
+    observer: &mut O,
+    mut candidate: impl FnMut() -> Option<State>,
+) -> Result<(State, u32, Accepted), GenError> {
     for attempt in 1..=cfg.max_attempts {
         let state = candidate();
         observer.before_attempt();
+        let Some(state) = state else {
+            observer.after_attempt(&Evaluation {
+                outcome: Err(Rejection::Construction),
+                states_expanded: 0,
+            });
+            continue;
+        };
         let evaluation = evaluate_counted(&state, cfg);
         observer.after_attempt(&evaluation);
         if let Ok(accepted) = evaluation.outcome {
@@ -405,6 +436,17 @@ mod tests {
         };
         assert_eq!(
             attempt_loop(&short, &mut (), || solved),
+            Err(GenError::TooManyAttempts { attempts: 2 })
+        );
+        // Failed constructions are counted attempts without a solver run.
+        let mut queue = vec![Some(one_move), None, None];
+        let mut counts = RejectionCounts::default();
+        let (_, attempt, _) = try_attempt_loop(&cfg, &mut counts, || queue.pop().unwrap()).unwrap();
+        assert_eq!(attempt, 3);
+        assert_eq!(counts.construction, 2);
+        assert_eq!(counts.total(), 2);
+        assert_eq!(
+            try_attempt_loop(&short, &mut (), || None),
             Err(GenError::TooManyAttempts { attempts: 2 })
         );
         let e = evaluate_counted(&unsolvable, &cfg);

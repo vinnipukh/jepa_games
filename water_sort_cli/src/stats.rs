@@ -12,13 +12,12 @@ use std::time::{Duration, Instant};
 
 use clap::Args;
 use rayon::prelude::*;
-use uniform_water_sort::Uniform;
 use water_sort_core::{
-    Evaluation, GenConfig, Generator, MetricsConfig, Observer, Params, RejectionCounts,
-    SolverLimits, is_symmetric, splitmix64,
+    DifficultyMetrics, Evaluation, GenConfig, Generator, Layout, MetricsConfig, Observer, Params,
+    RejectionCounts, SolverLimits, is_symmetric, splitmix64,
 };
 
-use crate::args::{GeneratorKind, Range, parse_count};
+use crate::args::{GenArgs, GenSpec, GeneratorKind, Range, StrategyArg, parse_count};
 
 /// D3 criterion (proposed): solver p99 (per attempt and accepted) and whole-generation p99
 /// below this.
@@ -37,8 +36,8 @@ const EARLY_STOP_MIN_FAILED: usize = 10;
 
 #[derive(Args, Debug, Clone)]
 pub struct StatsArgs {
-    #[arg(long, value_enum, default_value = "uniform")]
-    pub generator: GeneratorKind,
+    #[command(flatten)]
+    pub generator: GenArgs,
     /// Range of `n_colors`, e.g. `2..=12`.
     #[arg(long, default_value = "2..=12")]
     pub colors: Range,
@@ -64,9 +63,11 @@ pub struct StatsArgs {
     /// Sample `i` uses seed `splitmix64(base_seed ^ i)`.
     #[arg(long, default_value_t = 0)]
     pub base_seed: u64,
-    /// Output path without extension; writes `<out>.csv` and `<out>.md`.
-    #[arg(long, default_value = "reports/uniform_stats")]
-    pub out: PathBuf,
+    /// Output path without extension; writes `<out>.csv` and `<out>.md`. Default:
+    /// `reports/<slug>_stats`, e.g. `reports/uniform_stats`, `reports/uniform_distributed_stats`,
+    /// `reports/turan_scramble_standard_stats`.
+    #[arg(long)]
+    pub out: Option<PathBuf>,
     /// Worker threads. Each A* search can hold `max_states` states (hundreds of MB at 5e6),
     /// so this also bounds memory. Default: available cores, at most 8.
     #[arg(long)]
@@ -84,7 +85,45 @@ pub struct StatsArgs {
 }
 
 impl StatsArgs {
-    fn config(&self) -> GenConfig {
+    pub fn spec(&self) -> GenSpec {
+        self.generator.spec()
+    }
+
+    pub fn out_path(&self) -> PathBuf {
+        self.out.clone().unwrap_or_else(|| {
+            PathBuf::from("reports").join(format!("{}_stats", self.spec().slug()))
+        })
+    }
+
+    /// The generator flags as they would be typed.
+    fn generator_flags(&self) -> String {
+        let g = &self.generator;
+        let layout = Layout::from(g.layout);
+        match g.generator {
+            GeneratorKind::Uniform => format!("--generator uniform --layout {layout}"),
+            GeneratorKind::Turan => match g.strategy {
+                StrategyArg::Scramble => format!(
+                    "--generator turan --strategy scramble --steps {} --max-extra-steps {} \
+                     --layout {layout}",
+                    g.steps, g.max_extra_steps
+                ),
+                StrategyArg::Constrained => {
+                    format!("--generator turan --strategy constrained --layout {layout}")
+                }
+            },
+        }
+    }
+
+    pub const fn sampling(&self) -> Sampling {
+        Sampling {
+            samples: self.samples,
+            batch: self.batch,
+            base_seed: self.base_seed,
+            cell_budget_secs: self.cell_budget_secs,
+        }
+    }
+
+    pub fn config(&self) -> GenConfig {
         GenConfig {
             min_opt: self.min_opt,
             max_attempts: self.max_attempts,
@@ -97,21 +136,30 @@ impl StatsArgs {
     }
 }
 
+/// What a sample keeps of a generated puzzle.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Generated {
+    pub opt_moves: u32,
+    pub symmetric: bool,
+    pub metrics: DifficultyMetrics,
+    pub canonical_hash: u64,
+}
+
 /// One `generate` call.
 #[derive(Debug, Default)]
-struct Sample {
-    /// `(opt_moves, symmetric)` if a puzzle was generated.
-    puzzle: Option<(u32, bool)>,
-    attempts: u32,
-    rejections: RejectionCounts,
+pub struct Sample {
+    /// The puzzle, if one was generated within `max_attempts`.
+    pub puzzle: Option<Generated>,
+    pub attempts: u32,
+    pub rejections: RejectionCounts,
     /// Solver wall time of each attempt.
-    solve_secs: Vec<f32>,
+    pub solve_secs: Vec<f32>,
     /// Solver wall time of the accepted attempt.
-    accepted_solve_secs: Option<f32>,
+    pub accepted_solve_secs: Option<f32>,
     /// States expanded by each attempt.
-    states: Vec<u64>,
+    pub states: Vec<u64>,
     /// Whole `generate` call, including metrics.
-    gen_secs: f32,
+    pub gen_secs: f32,
 }
 
 /// Times the solver and counts rejections.
@@ -148,7 +196,12 @@ fn sample<G: Generator>(g: &G, params: Params, seed: u64, cfg: &GenConfig) -> Sa
     let result = g.generate_observed(&params, seed, cfg, &mut probe);
     let mut sample = probe.sample;
     sample.gen_secs = start.elapsed().as_secs_f32();
-    sample.puzzle = result.ok().map(|p| (p.opt_moves, is_symmetric(&p.state)));
+    sample.puzzle = result.ok().map(|p| Generated {
+        opt_moves: p.opt_moves,
+        symmetric: is_symmetric(&p.state),
+        metrics: p.metrics,
+        canonical_hash: p.canonical_hash,
+    });
     sample
 }
 
@@ -298,7 +351,7 @@ fn mean(values: impl Iterator<Item = f64>) -> f64 {
     if n == 0 { f64::NAN } else { sum / n as f64 }
 }
 
-fn summarize(
+pub fn summarize(
     params: Params,
     status: Status,
     max_attempts: u32,
@@ -315,7 +368,7 @@ fn summarize(
     let mut attempts: Vec<u32> = samples.iter().map(|s| s.attempts).collect();
     let mut opts: Vec<u32> = samples
         .iter()
-        .filter_map(|s| s.puzzle.map(|p| p.0))
+        .filter_map(|s| s.puzzle.map(|p| p.opt_moves))
         .collect();
     let mut expanded: Vec<u64> = samples
         .iter()
@@ -345,6 +398,7 @@ fn summarize(
         cell.rejections.unsolvable += r.unsolvable;
         cell.rejections.timeout += r.timeout;
         cell.rejections.below_min_opt += r.below_min_opt;
+        cell.rejections.construction += r.construction;
     }
     cell.attempts_mean = mean(attempts.iter().map(|&a| f64::from(a)));
     cell.attempts_p50 = percentile(&attempts, 0.5).unwrap_or(0);
@@ -361,7 +415,7 @@ fn summarize(
     cell.symmetric_frac = mean(
         samples
             .iter()
-            .filter_map(|s| s.puzzle.map(|p| f64::from(u8::from(p.1)))),
+            .filter_map(|s| s.puzzle.map(|p| f64::from(u8::from(p.symmetric)))),
     );
     cell.states_p50 = percentile(&expanded, 0.5).unwrap_or(0);
     cell.states_p99 = percentile(&expanded, 0.99).unwrap_or(0);
@@ -382,6 +436,37 @@ fn run_cell<G: Generator + Sync>(
     pool: &rayon::ThreadPool,
 ) -> Cell {
     let cfg = args.config();
+    let run = collect_samples(g, params, &cfg, &args.sampling(), pool);
+    summarize(params, run.status, cfg.max_attempts, &run.samples, run.wall)
+}
+
+/// How a cell is sampled.
+#[derive(Clone, Copy, Debug)]
+pub struct Sampling {
+    pub samples: u32,
+    pub batch: u32,
+    pub base_seed: u64,
+    pub cell_budget_secs: u64,
+}
+
+/// The raw samples of one cell.
+pub struct CellRun {
+    pub samples: Vec<Sample>,
+    pub status: Status,
+    pub wall: Duration,
+}
+
+/// Generates the samples of one cell in index order (seed `splitmix64(base_seed ^ i)`), with
+/// the early stops of the stats grid.
+pub fn collect_samples<G: Generator + Sync>(
+    g: &G,
+    params: Params,
+    cfg: &GenConfig,
+    sampling: &Sampling,
+    pool: &rayon::ThreadPool,
+) -> CellRun {
+    let cfg = *cfg;
+    let args = sampling;
     let start = Instant::now();
     let budget = Duration::from_secs(args.cell_budget_secs);
     let mut samples: Vec<Sample> = Vec::with_capacity(args.samples as usize);
@@ -416,7 +501,11 @@ fn run_cell<G: Generator + Sync>(
             break;
         }
     }
-    summarize(params, status, cfg.max_attempts, &samples, start.elapsed())
+    CellRun {
+        samples,
+        status,
+        wall: start.elapsed(),
+    }
 }
 
 /// Runs the whole grid, rewriting the reports after every cell.
@@ -446,8 +535,9 @@ pub fn run(args: &StatsArgs) -> Result<Vec<Cell>, Box<dyn std::error::Error>> {
                 } else if stopped && !args.no_skip {
                     Cell::empty(params, Status::Skipped)
                 } else {
-                    match args.generator {
-                        GeneratorKind::Uniform => run_cell(&Uniform, params, args, &pool),
+                    match args.spec() {
+                        GenSpec::Uniform(g) => run_cell(&g, params, args, &pool),
+                        GenSpec::Turan(g) => run_cell(&g, params, args, &pool),
                     }
                 };
                 stopped |= cell.status.stopped();
@@ -463,7 +553,7 @@ pub fn run(args: &StatsArgs) -> Result<Vec<Cell>, Box<dyn std::error::Error>> {
                     cell.wall_secs
                 );
                 cells.push(cell);
-                write_reports(&args.out, args, threads, &cells)?;
+                write_reports(&args.out_path(), args, threads, &cells)?;
             }
         }
     }
@@ -519,7 +609,7 @@ fn csv(args: &StatsArgs, cells: &[Cell]) -> String {
     for c in cells {
         let r = &c.rejections;
         let fields = [
-            args.generator.id().to_string(),
+            args.spec().id().to_string(),
             c.params.n_colors.to_string(),
             c.params.capacity.to_string(),
             c.params.n_empty.to_string(),
@@ -562,14 +652,21 @@ fn pct(v: f64) -> String {
 fn markdown(args: &StatsArgs, threads: usize, cells: &[Cell]) -> String {
     let cfg = args.config();
     let mut md = String::new();
-    let _ = writeln!(md, "# `{}` generator statistics\n", args.generator.id());
+    let spec = args.spec();
+    let _ = writeln!(md, "# `{}` generator statistics\n", spec.id());
     let _ = writeln!(
         md,
-        "Produced by `water_sort_cli stats --generator {} --colors {}..={} --capacity {}..={} \
+        "Variant `{}`, layout `{}`.\n",
+        spec.variant(),
+        spec.layout()
+    );
+    let _ = writeln!(
+        md,
+        "Produced by `water_sort_cli stats {} --colors {}..={} --capacity {}..={} \
          --empty {}..={} --samples {} --max-states {} --max-attempts {} --min-opt {} \
          --base-seed {}` (release build, {threads} threads, batch {}, cell budget {} s). \
          Sample `i` of every cell uses seed `splitmix64(base_seed ^ i)`.\n",
-        args.generator.id(),
+        args.generator_flags(),
         args.colors.0.start(),
         args.colors.0.end(),
         args.capacity.0.start(),
@@ -589,7 +686,9 @@ fn markdown(args: &StatsArgs, threads: usize, cells: &[Cell]) -> String {
         "Rates are per attempt. `solve` is the solver wall time of each attempt (all \
          outcomes); `acc. p99` only over accepted attempts; `states` is states expanded per \
          attempt. Timing columns depend on the machine and on parallel load; all other columns \
-         are deterministic. `sym` is the fraction of generated puzzles with a nontrivial \
+         are deterministic. Unsolvable, timeout and below-min rates do not add up to the \
+         rejection rate when the construction itself rejects attempts (Turan, D15); those \
+         count as attempts without a solver run. `sym` is the fraction of generated puzzles with a nontrivial \
          symmetry (D2); `gen` is the whole generation of one puzzle (all attempts plus metrics). \
          Supported (proposed D3): complete, no failed samples (a sample fails when it hits \
          `max_attempts`), solve p99, acc. p99 and gen p99 < {} ms, timeout rate < {} %, and \
@@ -645,6 +744,11 @@ fn markdown(args: &StatsArgs, threads: usize, cells: &[Cell]) -> String {
             pct(c.symmetric_frac),
         );
     }
+    opt_histograms(&mut md, cells);
+    md
+}
+
+fn opt_histograms(md: &mut String, cells: &[Cell]) {
     md.push_str("\n## `opt_moves` histograms\n\n");
     for c in cells.iter().filter(|c| !c.opt_hist.is_empty()) {
         let _ = writeln!(
@@ -656,7 +760,6 @@ fn markdown(args: &StatsArgs, threads: usize, cells: &[Cell]) -> String {
             hist(c)
         );
     }
-    md
 }
 
 #[cfg(test)]
@@ -713,8 +816,8 @@ mod tests {
             capacity: 3,
             n_empty: 1,
         };
-        let one = run_cell(&Uniform, p, &a, &pool(1));
-        let four = run_cell(&Uniform, p, &a, &pool(4));
+        let one = run_cell(&uniform_water_sort::Uniform::default(), p, &a, &pool(1));
+        let four = run_cell(&uniform_water_sort::Uniform::default(), p, &a, &pool(4));
         let strip = |c: &Cell| {
             let mut c = c.clone();
             for v in [
@@ -748,6 +851,29 @@ mod tests {
     }
 
     #[test]
+    fn turan_cells_count_construction_rejections() {
+        let a = args(&["--generator", "turan", "--samples", "30", "--rollouts", "0"]);
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(2)
+            .build()
+            .unwrap();
+        let p = Params {
+            n_colors: 4,
+            capacity: 4,
+            n_empty: 2,
+        };
+        let GenSpec::Turan(t) = a.spec() else {
+            panic!("expected turan")
+        };
+        let cell = run_cell(&t, p, &a, &pool);
+        assert_eq!((cell.status, cell.failed), (Status::Complete, 0));
+        assert!(cell.rejections.construction > 0);
+        assert_eq!(cell.rejections.unsolvable, 0);
+        assert_eq!(cell.attempts_total, 30 + u64::from(cell.rejections.total()));
+        assert!(markdown(&a, 1, &[cell]).contains("max_extra_steps=100,layout=standard"));
+    }
+
+    #[test]
     fn early_stop_on_timeouts() {
         // A tiny state limit makes most solves time out.
         let a = args(&[
@@ -771,7 +897,7 @@ mod tests {
             capacity: 4,
             n_empty: 2,
         };
-        let cell = run_cell(&Uniform, p, &a, &pool);
+        let cell = run_cell(&uniform_water_sort::Uniform::default(), p, &a, &pool);
         assert_eq!(cell.status, Status::StoppedTimeouts);
         assert_eq!(cell.samples, 16);
         assert!(!cell.supported());
@@ -799,7 +925,7 @@ mod tests {
             capacity: 3,
             n_empty: 1,
         };
-        let cell = run_cell(&Uniform, p, &a, &pool);
+        let cell = run_cell(&uniform_water_sort::Uniform::default(), p, &a, &pool);
         assert_eq!(cell.status, Status::StoppedFailures);
         assert_eq!(cell.samples, 32);
         assert!(cell.failed >= 10 && !cell.supported());
@@ -873,5 +999,30 @@ mod report_tests {
             rows += 1;
         }
         assert_eq!(rows, 99);
+    }
+
+    /// Every proposed distributed cell meets the criterion in the committed distributed report
+    /// (which ran on a faster machine, so the table is stricter where solver time binds).
+    #[test]
+    fn distributed_table_is_within_report() {
+        use water_sort_core::{Layout, is_supported_in};
+        let csv = include_str!("../../reports/uniform_distributed_stats.csv");
+        let mut lines = csv.lines();
+        let header: Vec<&str> = lines.next().unwrap().split(',').collect();
+        let col = |name: &str| header.iter().position(|h| *h == name).unwrap();
+        let mut supported = 0;
+        for line in lines {
+            let fields: Vec<&str> = line.split(',').collect();
+            let params = Params {
+                n_colors: fields[col("n_colors")].parse().unwrap(),
+                capacity: fields[col("capacity")].parse().unwrap(),
+                n_empty: fields[col("n_empty")].parse().unwrap(),
+            };
+            if is_supported_in(&params, Layout::Distributed) {
+                assert_eq!(fields[col("supported")], "true", "{params:?}");
+                supported += 1;
+            }
+        }
+        assert_eq!(supported, 54);
     }
 }

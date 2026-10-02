@@ -11,9 +11,12 @@ water_sort_core.workspace = true
 uniform_water_sort.workspace = true
 turan_water_sort.workspace = true
 clap.workspace = true
+rand_chacha.workspace = true
+rand_core.workspace = true
 rayon.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+statrs.workspace = true
 
 [lints]
 workspace = true

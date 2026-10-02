@@ -69,6 +69,22 @@ What limits each row:
 
 D2 follow-up (same report): the fraction of generated puzzles with a nontrivial symmetry is large only for 2 colors (13–35 %) and 3 colors (0.5–10 %). From 4 colors on it is ≤ 9 % at capacity 3 and ≤ 1.6 % at capacity 4 and 5, and it falls toward 0 as colors increase. Recommendation: no `--canonical-uniform` mode for now. The labeled/canonical gap matters only for tiny configurations.
 
+### D3 addendum — distributed layout range — decided (2026-10-02, user)
+
+Evidence: [`reports/uniform_distributed_stats.md`](../reports/uniform_distributed_stats.md) (`stats --generator uniform --layout distributed`, same grid, criterion and seeds as above, 1000 puzzles per cell; 15 min wall time). It ran on the cloud session machine (4 cores, 3 worker threads), **not** on the desktop that measured the standard table. Calibration on the same machine ([`reports/uniform_standard_calibration_cloud.csv`](../reports/uniform_standard_calibration_cloud.csv), standard layout, same seeds): 12 × 4 × 2 solver p99 783 ms vs 1003 ms on the desktop, so cloud timings are scaled by 1.28 before applying the 1 s limit.
+
+`SUPPORTED_DISTRIBUTED` (`n_colors` from 2 up to), accepted as proposed:
+
+| capacity \ `n_empty` | 1 | 2 |
+|---|---|---|
+| 3 | 12 | 12 |
+| 4 | 9 | 11 |
+| 5 | **8** (standard 7) | **8** (standard 9) |
+
+- **`n_empty = 1`: still rejection-bound, but less.** Spreading the free space makes somewhat fewer fills unsolvable (8 × 5 × 1: 99.35 % vs 99.59 % standard, attempts p99 724 vs 1180), which buys one color at capacity 5. The attempts-headroom condition (machine-independent) sets the bound: 8 × 5 × 1 needs 724 attempts at p99, 9 × 5 × 1 needs 2477.
+- **`n_empty = 2`: solver-bound, and costlier than standard.** On the same machine the distributed solver p99 is 1.2–3× the standard one (11 × 4 × 2: 536 vs 362 ms; 9 × 5 × 2: 829 vs 279 ms). Scaled: 12 × 4 × 2 → 1157 ms (out), 9 × 5 × 2 → 1061 ms (out), 11 × 4 × 2 → 686 ms, 8 × 5 × 2 → 414 ms. Unscaled, the cloud report marks 12 × 4 × 2 and 9 × 5 × 2 as passing; they are left out because the standard table was set on the slower machine.
+- API: `SUPPORTED_DISTRIBUTED`, `supported_rows(layout)`, `is_supported_in(&params, layout)`. `is_supported(&params)` is unchanged and means the standard layout. A CLI test checks that every proposed distributed cell passes the criterion in the committed report.
+
 ## D4 — Move limit `k · opt_moves` — proposed: k = 4
 
 Generous enough that a random-ish policy is not truncated before it has a chance. To be revisited after the RL baseline.
@@ -158,3 +174,19 @@ User request: puzzles may start with half-empty tubes, in **both** generators.
 - `Layout` lives in core and is a field of both generators. It appears in `variant()` and therefore in every record (Phase 4), the Python env (Phase 5), the web UI selector (Phase 6) and the evaluation axes (Phase 7).
 - Comparisons are made within a layout: uniform-standard vs turan-standard, and uniform-distributed vs turan-distributed. Uniform-standard vs uniform-distributed measures the layout alone.
 - The D3 limits were measured for `Standard`. Phase 3 measures `Distributed` and proposes its limits as a D3 addendum; the user decides.
+
+## D15 — Phase 3 implementation refinements and Turan defaults — decided (2026-10-02)
+
+Recorded while implementing layouts, `turan_water_sort`, and the `stats --layout`, `compare` and `sweep` commands.
+
+- **Construction rejections.** A strategy can give up on a candidate before solving (Scramble: the standard layout was not reached; Constrained: adjacent same-color units). Core gains `try_attempt_loop(cfg, observer, FnMut() -> Option<State>)`; `None` is an attempt rejected as `Rejection::Construction` with no solver run (`states_expanded` 0). It counts towards `max_attempts` and `GeneratedPuzzle::attempts`, the observer sees it like any rejection, and `RejectionCounts` gains `construction`. `attempt_loop` is now a wrapper around it, so uniform's output is unchanged.
+- **Scramble details.** Each step draws with `bounded_u32` from `reverse_moves(state)`, excluding the exact inverse of the previous pour (`ReverseMove::new(prev.to, prev.from, prev.count)`, the only pour that restores the previous state) unless it is the only move. Then the color labels are shuffled, then the tube order (Standard: empties moved last, order of the others kept, then the full tubes shuffled; Distributed: all tubes). `Unsolvable` is `debug_assert`ed away through an observer wrapper.
+- **Finding: reverse walks are absorbed early.** A pour always moves the whole top run that fits, so a state whose every non-empty tube shows a single top unit on a different color (or a one-unit tube) has *no* predecessor: no reverse move exists. Random reverse walks reach such a state after about `opt_moves` steps (median 12 at 4 × 4 × 2, 25 at 11 × 4 × 2, 18 at 12 × 3 × 1), and every walk with one empty tube ends there. With two empty tubes 6–30 % of walks are never absorbed but ping-pong one unit between a one-unit tube and an empty one. A walk with no reverse move left simply ends (the state is still solvable by construction). Consequences ([`reports/turan_steps_sweep.md`](../reports/turan_steps_sweep.md)):
+  - `steps` only matters up to about 20–40: mean `opt_moves` at `steps = 40` is within 2 % of the largest value over 10–160 for every supported configuration and both layouts. It is a cap, not a difficulty knob, and Turan puzzles are shorter than uniform ones (see the compare reports).
+  - **Standard:** the walk almost never needs extra steps. It ends in the standard layout only if the absorbing state already is one; otherwise it is stuck. 56–95 % of attempts are construction rejections (more at larger capacity), attempts p99 ≤ 104, cheap because no solver runs. The largest extra-step count in the whole sweep was 23.
+- **`variant()` strings.** `scramble(steps=S,max_extra_steps=M,layout=standard)`, `scramble(steps=S,layout=distributed)` (M has no effect there), `constrained(layout=L)`. Uniform keeps `fisher_yates` for the standard layout (so the Phase 2 golden files are byte-identical) and uses `fisher_yates(layout=distributed)` otherwise. `Layout` serializes as `"standard"` / `"distributed"`.
+- **Constrained** uses the uniform construction of the layout and accepts iff `state.segments() == n_units` (every unit is its own segment), so no new rule enters the generator. One color in the standard layout can never pass; it runs into `TooManyAttempts`.
+- **Seeds.** `Turan::fresh_seed(now) = time_seed(now, SEED_COUNTER.fetch_add(1))`, never fails.
+- **CLI.** `stats` takes `--generator uniform|turan`, `--layout`, `--strategy`, `--steps`, `--max-extra-steps`; its default output is `reports/<slug>_stats` (`uniform`, `uniform_distributed`, `turan_scramble_standard`, ...). The CSV format is unchanged; the Markdown report adds the variant line. Generator specs for `compare` are `uniform[:distributed]`, `turan[:scramble|constrained][:<steps>][:extra=<M>][:standard|distributed]`.
+- **Defaults — decided (2026-10-02, user):** `TuranStrategy::DEFAULT_STEPS = 40` for every supported configuration and both layouts (the sweep's smallest saturating value is 10–40; one value keeps records simple and costs nothing, since walks are absorbed first). `DEFAULT_MAX_EXTRA_STEPS = 100` (max needed: 23; larger values only waste time on ping-pong walks, e.g. 10 000 made 4 × 4 × 2 generation 4× slower).
+- **Follow-up — accepted (2026-10-02, user), before Phase 4:** because `steps` saturates, the Scramble difficulty knob is weak. Alternatives, each a new `TuranStrategy` arm or a `VERSION` bump: (a) steer walks away from absorbing states (never pick a reverse move into a state with no reverse move) so `steps` keeps mixing; (b) make Distributed the Scramble default (no construction rejections at all). Phase 3 implements the plan's algorithm as written; (a) is added in a follow-up PR as a new strategy arm, so existing seeds keep their puzzles.

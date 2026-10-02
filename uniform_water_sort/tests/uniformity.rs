@@ -1,10 +1,13 @@
 //! Uniformity validation (Phase 2.2): accepted puzzles are uniform over the accepted labeled set.
 //!
-//! For tiny params, every standard-layout fill is enumerated and filtered with the generator's
-//! own [`evaluate`] and config, giving the accepted set `A`. The generator is sampled
+//! For tiny params, every fill of the layout (standard or distributed, D14) is enumerated and
+//! filtered with the generator's own [`evaluate`] and config, giving the accepted set `A`. The generator is sampled
 //! `50 * |A|` times from a fixed seed list, so the test is deterministic and never flakes, and a
 //! Pearson chi-square test with `|A| - 1` degrees of freedom must give `p > 0.001`. A shuffle
-//! with a deliberate off-by-one bug must fail the same test, which shows the test has power.
+//! with a deliberate off-by-one bug must fail the same test, which shows the test has power. For
+//! the distributed layout the control draws heights tube by tube, each uniform over its feasible
+//! range, which is biased (independent heights with rejection on the sum would be exactly
+//! uniform, so it would not be a control).
 //!
 //! The 3-color tests are `#[ignore]` and run in the release-mode heavy-tests CI job.
 
@@ -15,8 +18,8 @@ use rand_chacha::rand_core::{Rng, SeedableRng};
 use statrs::distribution::{ChiSquared, ContinuousCDF};
 use uniform_water_sort::Uniform;
 use water_sort_core::{
-    GenConfig, Generator, MetricsConfig, Params, State, attempt_loop, bounded_u32, evaluate,
-    is_symmetric, splitmix64, standard_fills,
+    GenConfig, Generator, Layout, MetricsConfig, Params, State, attempt_loop, bounded_u32,
+    distributed_fills, evaluate, fisher_yates, is_symmetric, splitmix64, standard_fills,
 };
 
 const SAMPLES_PER_STATE: usize = 50;
@@ -48,11 +51,13 @@ fn seed(i: usize) -> u64 {
     splitmix64(SALT ^ i as u64)
 }
 
-/// The accepted set `A`, indexed.
-fn accepted_set(params: Params) -> HashMap<State, usize> {
-    standard_fills(params)
-        .unwrap()
-        .filter(|s| evaluate(s, &CFG).is_ok())
+/// The accepted set `A` of `layout`, indexed.
+fn accepted_set(params: Params, layout: Layout) -> HashMap<State, usize> {
+    let all: Box<dyn Iterator<Item = State>> = match layout {
+        Layout::Standard => Box::new(standard_fills(params).unwrap()),
+        Layout::Distributed => Box::new(distributed_fills(params).unwrap()),
+    };
+    all.filter(|s| evaluate(s, &CFG).is_ok())
         .enumerate()
         .map(|(i, s)| (s, i))
         .collect()
@@ -83,8 +88,8 @@ fn chi_square(counts: &[u64]) -> ChiSquare {
 }
 
 /// Samples `50 * |A|` puzzles with `sample(seed)` and tests them for uniformity over `A`.
-fn test_uniformity(params: Params, sample: impl Fn(u64) -> State) -> ChiSquare {
-    let set = accepted_set(params);
+fn test_uniformity(params: Params, layout: Layout, sample: impl Fn(u64) -> State) -> ChiSquare {
+    let set = accepted_set(params, layout);
     assert!(set.len() > 1, "{params:?}: accepted set too small to test");
     let mut counts = vec![0u64; set.len()];
     for i in 0..SAMPLES_PER_STATE * set.len() {
@@ -97,7 +102,7 @@ fn test_uniformity(params: Params, sample: impl Fn(u64) -> State) -> ChiSquare {
     let result = chi_square(&counts);
     let symmetric = set.keys().filter(|s| is_symmetric(s)).count();
     println!(
-        "{params:?}: |A| = {}, symmetric = {symmetric}, chi2 = {:.1}, df = {}, p = {:.4}",
+        "{params:?} {layout}: |A| = {}, symmetric = {symmetric}, chi2 = {:.1}, df = {}, p = {:.4}",
         set.len(),
         result.statistic,
         result.df,
@@ -106,8 +111,38 @@ fn test_uniformity(params: Params, sample: impl Fn(u64) -> State) -> ChiSquare {
     result
 }
 
-fn uniform(params: Params) -> impl Fn(u64) -> State {
-    move |seed| Uniform.generate(&params, seed, &CFG).unwrap().state
+fn uniform(params: Params, layout: Layout) -> impl Fn(u64) -> State {
+    move |seed| {
+        Uniform::new(layout)
+            .generate(&params, seed, &CFG)
+            .unwrap()
+            .state
+    }
+}
+
+/// The distributed uniform generator with a biased height draw: each tube's height is uniform
+/// over the range that still lets the remaining tubes hold the remaining units.
+fn biased_heights(params: Params) -> impl Fn(u64) -> State {
+    move |seed| {
+        let mut rng = ChaCha20Rng::seed_from_u64(seed);
+        let (n, cap) = (params.n_tubes(), usize::from(params.capacity));
+        let (state, _, _) = attempt_loop(&CFG, &mut (), || {
+            let mut left = params.n_units();
+            let mut heights = Vec::with_capacity(n);
+            for i in 0..n {
+                let lo = left.saturating_sub(cap * (n - i - 1));
+                let hi = cap.min(left);
+                let h = lo + bounded_u32(&mut rng, u32::try_from(hi - lo + 1).unwrap()) as usize;
+                heights.push(u8::try_from(h).unwrap());
+                left -= h;
+            }
+            let mut units = State::sorted_units(params);
+            fisher_yates(&mut rng, &mut units);
+            State::from_heights(params, &heights, &units).unwrap()
+        })
+        .unwrap();
+        state
+    }
 }
 
 /// The uniform generator with a buggy shuffle in place of Fisher-Yates.
@@ -161,15 +196,15 @@ fn chi_square_reference_values() {
 #[test]
 fn uniform_2x2_1() {
     let params = p(2, 2, 1);
-    assert_eq!(accepted_set(params).len(), 4);
-    let result = test_uniformity(params, uniform(params));
+    assert_eq!(accepted_set(params, Layout::Standard).len(), 4);
+    let result = test_uniformity(params, Layout::Standard, uniform(params, Layout::Standard));
     assert!(result.p_value > ALPHA, "p = {}", result.p_value);
 }
 
 #[test]
 fn biased_2x2_1_fails() {
     let params = p(2, 2, 1);
-    let result = test_uniformity(params, biased(params, last_unit_fixed));
+    let result = test_uniformity(params, Layout::Standard, biased(params, last_unit_fixed));
     assert!(result.p_value < ALPHA, "p = {}", result.p_value);
 }
 
@@ -177,7 +212,7 @@ fn biased_2x2_1_fails() {
 #[ignore = "release-mode heavy test: 50 * |A| generations"]
 fn uniform_3x3_1() {
     let params = p(3, 3, 1);
-    let result = test_uniformity(params, uniform(params));
+    let result = test_uniformity(params, Layout::Standard, uniform(params, Layout::Standard));
     assert!(result.p_value > ALPHA, "p = {}", result.p_value);
 }
 
@@ -185,6 +220,38 @@ fn uniform_3x3_1() {
 #[ignore = "release-mode heavy test: 50 * |A| generations"]
 fn biased_3x3_1_fails() {
     let params = p(3, 3, 1);
-    let result = test_uniformity(params, biased(params, sattolo));
+    let result = test_uniformity(params, Layout::Standard, biased(params, sattolo));
+    assert!(result.p_value < ALPHA, "p = {}", result.p_value);
+}
+
+#[test]
+fn distributed_2x2_1() {
+    let params = p(2, 2, 1);
+    let d = Layout::Distributed;
+    let result = test_uniformity(params, d, uniform(params, d));
+    assert!(result.p_value > ALPHA, "p = {}", result.p_value);
+}
+
+#[test]
+fn distributed_biased_2x2_1_fails() {
+    let params = p(2, 2, 1);
+    let result = test_uniformity(params, Layout::Distributed, biased_heights(params));
+    assert!(result.p_value < ALPHA, "p = {}", result.p_value);
+}
+
+#[test]
+#[ignore = "release-mode heavy test: 50 * |A| generations"]
+fn distributed_3x3_1() {
+    let params = p(3, 3, 1);
+    let d = Layout::Distributed;
+    let result = test_uniformity(params, d, uniform(params, d));
+    assert!(result.p_value > ALPHA, "p = {}", result.p_value);
+}
+
+#[test]
+#[ignore = "release-mode heavy test: 50 * |A| generations"]
+fn distributed_biased_3x3_1_fails() {
+    let params = p(3, 3, 1);
+    let result = test_uniformity(params, Layout::Distributed, biased_heights(params));
     assert!(result.p_value < ALPHA, "p = {}", result.p_value);
 }

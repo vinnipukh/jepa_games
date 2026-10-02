@@ -38,7 +38,7 @@ jepa_games/
 
 > **Status: done (2026-10-02).** Private repo `vinnipukh/jepa_games`, toolchain pinned to 1.99.0. Plan: [docs/phases/phase-0-workspace/PLAN.md](docs/phases/phase-0-workspace/PLAN.md).
 
-Detailed plans for every phase live in [docs/](docs/README.md). Decisions made after this roadmap was written are recorded in [docs/decisions.md](docs/decisions.md) (D1–D12) and override the text below where they differ.
+Detailed plans for every phase live in [docs/](docs/README.md). Decisions made after this roadmap was written are recorded in [docs/decisions.md](docs/decisions.md) (D1–D15) and override the text below where they differ.
 
 ---
 
@@ -166,11 +166,13 @@ pub struct GeneratedPuzzle {
 
 Whatever the definition turns out to be, the following conditions apply:
 
-- [ ] Implements the `Generator` trait and contains no game rules outside `water_sort_core`.
-- [ ] Every generated puzzle is validated by the same solver, and `opt_moves` is computed the same way.
-- [ ] Deterministic for a given seed.
-- [ ] The measurements in Phase 2.3 are also produced for this generator and reported side by side with uniform.
-- [ ] The distribution difference from uniform is measured: `opt_moves` histogram, color-change histogram, random policy failure rate.
+- [x] Implements the `Generator` trait and contains no game rules outside `water_sort_core`.
+- [x] Every generated puzzle is validated by the same solver, and `opt_moves` is computed the same way.
+- [x] Deterministic for a given seed.
+- [x] The measurements in Phase 2.3 are also produced for this generator and reported side by side with uniform.
+- [x] The distribution difference from uniform is measured: `opt_moves` histogram, color-change histogram, random policy failure rate.
+
+> **Status: implemented (2026-10-02).** Both layouts in both generators; refinements in D15; distributed limits (D3 addendum) and Turan defaults (D15) decided; a non-absorbing scramble follows before Phase 4. Reports: `reports/uniform_vs_turan_{standard,distributed}.md`, `reports/uniform_standard_vs_distributed.md`, `reports/uniform_distributed_stats.md`, `reports/turan_steps_sweep.md`.
 
 ---
 

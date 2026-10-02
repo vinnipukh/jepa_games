@@ -40,7 +40,7 @@ The toolchain is pinned in `rust-toolchain.toml` (1.99.0). `Cargo.lock` is commi
 ## Domain facts worth knowing
 
 - Every color has exactly `capacity` units, so free space is always `n_empty × capacity` slots. Supported: `n_empty` 1 or 2 only (D3, `MAX_SUPPORTED_EMPTY`), and `n_colors` limited per `SUPPORTED`. 0 empty tubes has no legal move; 3 is excluded.
-- Two layouts (D14): `Standard` (full tubes + whole empty tubes) and `Distributed` (free space spread over tubes, half-empty tubes allowed), in both generators. Implemented in Phase 3; until then only `Standard` exists.
+- Two layouts (D14): `Standard` (full tubes + whole empty tubes) and `Distributed` (free space spread over tubes, half-empty tubes allowed), in both generators (`water_sort_core::Layout`, Phase 3). Distributed limits: `SUPPORTED_DISTRIBUTED` / `is_supported_in` (D3 addendum, decided).
 - Uniform = labeled-uniform over accepted fills (D2). Turan = time-seeded strategies, default reverse scramble from a solved state (D1).
 
 ## Workflow

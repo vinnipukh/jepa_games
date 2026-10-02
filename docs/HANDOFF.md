@@ -16,7 +16,7 @@ Development continues phase by phase in cloud coding-agent sessions. Everything 
 4. Review the PR (another session can do it: "review PR #N against docs/phases/phase-N-<name>/PLAN.md and docs/decisions.md"). Decide anything marked **proposed** in `docs/decisions.md`. Merge.
 5. Repeat with the next phase.
 
-Phase order and status: [`README.md`](README.md). Phase 3 is next.
+Phase order and status: [`README.md`](README.md). Phase 4 is next.
 
 ## Session prompt (paste this)
 

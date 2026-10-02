@@ -909,6 +909,8 @@ version = "0.1.0"
 dependencies = [
  "rand_chacha 0.10.0",
  "rand_core 0.10.1",
+ "serde",
+ "serde_json",
  "water_sort_core",
 ]
 
@@ -982,9 +984,12 @@ name = "water_sort_cli"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "rand_chacha 0.10.0",
+ "rand_core 0.10.1",
  "rayon",
  "serde",
  "serde_json",
+ "statrs",
  "turan_water_sort",
  "uniform_water_sort",
  "water_sort_core",

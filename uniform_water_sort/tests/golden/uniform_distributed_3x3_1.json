@@ -1,0 +1,614 @@
+{
+  "generator": "uniform",
+  "version": 1,
+  "variant": "fisher_yates(layout=distributed)",
+  "params": {
+    "n_colors": 3,
+    "capacity": 3,
+    "n_empty": 1
+  },
+  "config": {
+    "min_opt": 1,
+    "max_attempts": 10000,
+    "max_states": 5000000,
+    "metrics": {
+      "random_rollouts": 64,
+      "rollout_cap_factor": 4,
+      "dead_end_ratios": false
+    }
+  },
+  "cases": [
+    {
+      "seed": "0000000000000000",
+      "attempts": 2,
+      "opt_moves": 5,
+      "puzzle_code": "041G60DHX0TG",
+      "canonical_hash": "7e59aafa0a8474cf",
+      "solution": [
+        {
+          "from": 1,
+          "to": 2
+        },
+        {
+          "from": 1,
+          "to": 0
+        },
+        {
+          "from": 3,
+          "to": 1
+        },
+        {
+          "from": 0,
+          "to": 3
+        },
+        {
+          "from": 0,
+          "to": 2
+        }
+      ]
+    },
+    {
+      "seed": "0000000000000001",
+      "attempts": 2,
+      "opt_moves": 3,
+      "puzzle_code": "041G60D1BGXG",
+      "canonical_hash": "aa151f9249af7206",
+      "solution": [
+        {
+          "from": 3,
+          "to": 2
+        },
+        {
+          "from": 3,
+          "to": 0
+        },
+        {
+          "from": 2,
+          "to": 3
+        }
+      ]
+    },
+    {
+      "seed": "000000000000002a",
+      "attempts": 1,
+      "opt_moves": 6,
+      "puzzle_code": "041G60FE8GV0",
+      "canonical_hash": "eb91cea35d28b1c1",
+      "solution": [
+        {
+          "from": 1,
+          "to": 2
+        },
+        {
+          "from": 3,
+          "to": 1
+        },
+        {
+          "from": 3,
+          "to": 2
+        },
+        {
+          "from": 0,
+          "to": 3
+        },
+        {
+          "from": 0,
+          "to": 1
+        },
+        {
+          "from": 0,
+          "to": 3
+        }
+      ]
+    },
+    {
+      "seed": "00000000deadbeef",
+      "attempts": 1,
+      "opt_moves": 5,
+      "puzzle_code": "041G60CHGVY0",
+      "canonical_hash": "e37ad70d8ac87cc7",
+      "solution": [
+        {
+          "from": 2,
+          "to": 3
+        },
+        {
+          "from": 1,
+          "to": 2
+        },
+        {
+          "from": 0,
+          "to": 1
+        },
+        {
+          "from": 2,
+          "to": 0
+        },
+        {
+          "from": 1,
+          "to": 2
+        }
+      ]
+    },
+    {
+      "seed": "8000000000000000",
+      "attempts": 1,
+      "opt_moves": 4,
+      "puzzle_code": "041G6081F9QG",
+      "canonical_hash": "58796065fe114b60",
+      "solution": [
+        {
+          "from": 1,
+          "to": 0
+        },
+        {
+          "from": 3,
+          "to": 0
+        },
+        {
+          "from": 2,
+          "to": 1
+        },
+        {
+          "from": 2,
+          "to": 3
+        }
+      ]
+    },
+    {
+      "seed": "ffffffffffffffff",
+      "attempts": 1,
+      "opt_moves": 5,
+      "puzzle_code": "041G60DH1NQ0",
+      "canonical_hash": "d2b6ebf5dc5349ee",
+      "solution": [
+        {
+          "from": 2,
+          "to": 1
+        },
+        {
+          "from": 0,
+          "to": 2
+        },
+        {
+          "from": 3,
+          "to": 0
+        },
+        {
+          "from": 3,
+          "to": 2
+        },
+        {
+          "from": 0,
+          "to": 3
+        }
+      ]
+    },
+    {
+      "seed": "1cc152e47d174d3c",
+      "attempts": 1,
+      "opt_moves": 4,
+      "puzzle_code": "041G60D7W0BG",
+      "canonical_hash": "2cd5cfd3412cbb1c",
+      "solution": [
+        {
+          "from": 0,
+          "to": 2
+        },
+        {
+          "from": 1,
+          "to": 0
+        },
+        {
+          "from": 3,
+          "to": 1
+        },
+        {
+          "from": 2,
+          "to": 3
+        }
+      ]
+    },
+    {
+      "seed": "03317bb4875fb038",
+      "attempts": 1,
+      "opt_moves": 3,
+      "puzzle_code": "041G60D1DXR0",
+      "canonical_hash": "b56845bedf3d21c5",
+      "solution": [
+        {
+          "from": 1,
+          "to": 0
+        },
+        {
+          "from": 2,
+          "to": 1
+        },
+        {
+          "from": 2,
+          "to": 3
+        }
+      ]
+    },
+    {
+      "seed": "8c44e9ef30ca4931",
+      "attempts": 2,
+      "opt_moves": 7,
+      "puzzle_code": "041G60E1WRWG",
+      "canonical_hash": "b7ed891f20ec4931",
+      "solution": [
+        {
+          "from": 1,
+          "to": 2
+        },
+        {
+          "from": 0,
+          "to": 1
+        },
+        {
+          "from": 2,
+          "to": 0
+        },
+        {
+          "from": 3,
+          "to": 2
+        },
+        {
+          "from": 3,
+          "to": 0
+        },
+        {
+          "from": 1,
+          "to": 3
+        },
+        {
+          "from": 1,
+          "to": 2
+        }
+      ]
+    },
+    {
+      "seed": "ac4dd1641a6e5ca4",
+      "attempts": 2,
+      "opt_moves": 6,
+      "puzzle_code": "041G60BPP0F0",
+      "canonical_hash": "7eae730940487d1d",
+      "solution": [
+        {
+          "from": 1,
+          "to": 2
+        },
+        {
+          "from": 3,
+          "to": 1
+        },
+        {
+          "from": 3,
+          "to": 2
+        },
+        {
+          "from": 0,
+          "to": 3
+        },
+        {
+          "from": 0,
+          "to": 2
+        },
+        {
+          "from": 0,
+          "to": 3
+        }
+      ]
+    },
+    {
+      "seed": "c42ddc646a6fa046",
+      "attempts": 1,
+      "opt_moves": 6,
+      "puzzle_code": "041G60A3GYPG",
+      "canonical_hash": "8174cc1d6e276ff0",
+      "solution": [
+        {
+          "from": 2,
+          "to": 1
+        },
+        {
+          "from": 3,
+          "to": 0
+        },
+        {
+          "from": 3,
+          "to": 2
+        },
+        {
+          "from": 1,
+          "to": 3
+        },
+        {
+          "from": 2,
+          "to": 1
+        },
+        {
+          "from": 0,
+          "to": 2
+        }
+      ]
+    },
+    {
+      "seed": "7060ff710df8d712",
+      "attempts": 1,
+      "opt_moves": 5,
+      "puzzle_code": "041G60DP9Y80",
+      "canonical_hash": "a0a3856a6f68bb53",
+      "solution": [
+        {
+          "from": 1,
+          "to": 3
+        },
+        {
+          "from": 0,
+          "to": 3
+        },
+        {
+          "from": 2,
+          "to": 1
+        },
+        {
+          "from": 0,
+          "to": 2
+        },
+        {
+          "from": 0,
+          "to": 1
+        }
+      ]
+    },
+    {
+      "seed": "a94418ed682c00b2",
+      "attempts": 1,
+      "opt_moves": 4,
+      "puzzle_code": "041G60EHKWM0",
+      "canonical_hash": "f3798de92866daa2",
+      "solution": [
+        {
+          "from": 1,
+          "to": 0
+        },
+        {
+          "from": 1,
+          "to": 3
+        },
+        {
+          "from": 0,
+          "to": 1
+        },
+        {
+          "from": 0,
+          "to": 2
+        }
+      ]
+    },
+    {
+      "seed": "cf27ba36812e9a71",
+      "attempts": 1,
+      "opt_moves": 6,
+      "puzzle_code": "041G60C1RVV0",
+      "canonical_hash": "0498d60460425df3",
+      "solution": [
+        {
+          "from": 2,
+          "to": 1
+        },
+        {
+          "from": 2,
+          "to": 0
+        },
+        {
+          "from": 3,
+          "to": 0
+        },
+        {
+          "from": 3,
+          "to": 2
+        },
+        {
+          "from": 1,
+          "to": 3
+        },
+        {
+          "from": 1,
+          "to": 2
+        }
+      ]
+    },
+    {
+      "seed": "7fd64407ba263e35",
+      "attempts": 1,
+      "opt_moves": 6,
+      "puzzle_code": "041G60CZHGCG",
+      "canonical_hash": "4f617b6d70acd617",
+      "solution": [
+        {
+          "from": 0,
+          "to": 2
+        },
+        {
+          "from": 3,
+          "to": 0
+        },
+        {
+          "from": 3,
+          "to": 1
+        },
+        {
+          "from": 0,
+          "to": 3
+        },
+        {
+          "from": 1,
+          "to": 0
+        },
+        {
+          "from": 1,
+          "to": 2
+        }
+      ]
+    },
+    {
+      "seed": "7452de1fb7ddda7c",
+      "attempts": 1,
+      "opt_moves": 4,
+      "puzzle_code": "041G60CJGWYG",
+      "canonical_hash": "4997a64c5e502452",
+      "solution": [
+        {
+          "from": 3,
+          "to": 0
+        },
+        {
+          "from": 2,
+          "to": 3
+        },
+        {
+          "from": 0,
+          "to": 2
+        },
+        {
+          "from": 0,
+          "to": 1
+        }
+      ]
+    },
+    {
+      "seed": "9d9175575fcc76c8",
+      "attempts": 1,
+      "opt_moves": 6,
+      "puzzle_code": "041G60C1RXNG",
+      "canonical_hash": "7c74e01e4d7e9bfd",
+      "solution": [
+        {
+          "from": 3,
+          "to": 1
+        },
+        {
+          "from": 0,
+          "to": 3
+        },
+        {
+          "from": 1,
+          "to": 0
+        },
+        {
+          "from": 2,
+          "to": 1
+        },
+        {
+          "from": 2,
+          "to": 0
+        },
+        {
+          "from": 1,
+          "to": 2
+        }
+      ]
+    },
+    {
+      "seed": "a49ee7da3cd014b2",
+      "attempts": 2,
+      "opt_moves": 6,
+      "puzzle_code": "041G60EPT0Q0",
+      "canonical_hash": "26c52b314738a9ee",
+      "solution": [
+        {
+          "from": 1,
+          "to": 2
+        },
+        {
+          "from": 0,
+          "to": 2
+        },
+        {
+          "from": 1,
+          "to": 0
+        },
+        {
+          "from": 3,
+          "to": 1
+        },
+        {
+          "from": 3,
+          "to": 0
+        },
+        {
+          "from": 1,
+          "to": 3
+        }
+      ]
+    },
+    {
+      "seed": "8949e484815e3448",
+      "attempts": 1,
+      "opt_moves": 6,
+      "puzzle_code": "041G60B2EYR0",
+      "canonical_hash": "0498d60460425df3",
+      "solution": [
+        {
+          "from": 2,
+          "to": 0
+        },
+        {
+          "from": 2,
+          "to": 3
+        },
+        {
+          "from": 1,
+          "to": 3
+        },
+        {
+          "from": 1,
+          "to": 2
+        },
+        {
+          "from": 0,
+          "to": 1
+        },
+        {
+          "from": 0,
+          "to": 2
+        }
+      ]
+    },
+    {
+      "seed": "8f20fd0604f50eec",
+      "attempts": 1,
+      "opt_moves": 6,
+      "puzzle_code": "041G60CVTY00",
+      "canonical_hash": "6984b4098178ed88",
+      "solution": [
+        {
+          "from": 2,
+          "to": 3
+        },
+        {
+          "from": 0,
+          "to": 3
+        },
+        {
+          "from": 1,
+          "to": 0
+        },
+        {
+          "from": 2,
+          "to": 1
+        },
+        {
+          "from": 0,
+          "to": 2
+        },
+        {
+          "from": 0,
+          "to": 3
+        }
+      ]
+    }
+  ]
+}
