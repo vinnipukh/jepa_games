@@ -30,8 +30,9 @@ impl Generator for Turan {
     const ID: &'static str = "turan";
     const VERSION: u32 = 1;
     fn variant(&self) -> String;            // "scramble(steps=40)", "constrained"
-    fn fresh_seed(&self, now_nanos: u64) -> u64;
-    fn generate(&self, params: &Params, seed: u64, cfg: &GenConfig) -> Result<GeneratedPuzzle, GenError>;
+    fn fresh_seed(&self, now_nanos: u64) -> Result<u64, GenError>;   // never fails for turan
+    fn generate_observed<O: Observer>(&self, params: &Params, seed: u64, cfg: &GenConfig, observer: &mut O) -> Result<GeneratedPuzzle, GenError>;
+    // generate, generate_traced, assemble are provided by the trait (D13); the loop is core::attempt_loop
 }
 ```
 
