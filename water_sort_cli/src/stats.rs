@@ -28,6 +28,8 @@ pub const TIMEOUT_RATE_LIMIT: f64 = 0.001;
 const EARLY_STOP_MIN_TIMEOUTS: u32 = 10;
 /// ...and a timeout rate above this multiple of the limit.
 const EARLY_STOP_FACTOR: f64 = 10.0;
+/// Early stop: this many samples that hit `max_attempts` (any failure makes a cell unsupported).
+const EARLY_STOP_MIN_FAILED: usize = 10;
 
 #[derive(Args, Debug, Clone)]
 pub struct StatsArgs {
@@ -152,6 +154,8 @@ pub enum Status {
     Complete,
     /// Stopped early: the timeout rate clearly exceeds the D3 limit.
     StoppedTimeouts,
+    /// Stopped early: at least `EARLY_STOP_MIN_FAILED` samples hit `max_attempts`.
+    StoppedFailures,
     /// Stopped early: the cell's time budget ran out.
     StoppedBudget,
     /// Not measured: a smaller `n_colors` cell with the same capacity and `n_empty` was stopped.
@@ -165,6 +169,7 @@ impl Status {
         match self {
             Self::Complete => "complete",
             Self::StoppedTimeouts => "stopped:timeouts",
+            Self::StoppedFailures => "stopped:failures",
             Self::StoppedBudget => "stopped:budget",
             Self::Skipped => "skipped",
             Self::Invalid => "invalid",
@@ -172,7 +177,10 @@ impl Status {
     }
 
     const fn stopped(self) -> bool {
-        matches!(self, Self::StoppedTimeouts | Self::StoppedBudget)
+        matches!(
+            self,
+            Self::StoppedTimeouts | Self::StoppedFailures | Self::StoppedBudget
+        )
     }
 }
 
@@ -248,12 +256,13 @@ impl Cell {
         self.rate(self.rejections.timeout)
     }
 
-    /// The proposed D3 criterion: fully measured, no failed samples, solver p99 below 1 s and
-    /// timeout rate below 0.1 %, both per attempt.
+    /// The proposed D3 criterion: fully measured, no failed samples, solver p99 below 1 s both
+    /// per attempt and over accepted puzzles, and timeout rate below 0.1 % per attempt.
     pub fn supported(&self) -> bool {
         self.status == Status::Complete
             && self.failed == 0
             && self.solve_ms_p99 < P99_LIMIT_MS
+            && self.accepted_solve_ms_p99 < P99_LIMIT_MS
             && self.timeout_rate() < TIMEOUT_RATE_LIMIT
     }
 }
@@ -377,6 +386,11 @@ fn run_cell<G: Generator + Sync>(
             f64::from(timeouts) > EARLY_STOP_FACTOR * TIMEOUT_RATE_LIMIT * attempts as f64;
         if next < args.samples && timeouts >= EARLY_STOP_MIN_TIMEOUTS && clearly_over {
             status = Status::StoppedTimeouts;
+            break;
+        }
+        let failed = samples.iter().filter(|s| s.puzzle.is_none()).count();
+        if next < args.samples && failed >= EARLY_STOP_MIN_FAILED {
+            status = Status::StoppedFailures;
             break;
         }
         if next < args.samples && start.elapsed() > budget {
@@ -558,10 +572,12 @@ fn markdown(args: &StatsArgs, threads: usize, cells: &[Cell]) -> String {
          outcomes); `acc. p99` only over accepted attempts; `states` is states expanded per \
          attempt. Timing columns depend on the machine and on parallel load; all other columns \
          are deterministic. `sym` is the fraction of generated puzzles with a nontrivial \
-         symmetry (D2). Supported (proposed D3): complete, no failed samples, solve p99 < {} ms \
-         and timeout rate < {} %. A cell stops early (`stopped:timeouts`) once it has at least \
-         {EARLY_STOP_MIN_TIMEOUTS} timeouts and a timeout rate above {} %; larger `n_colors` \
-         with the same capacity and `n_empty` are then skipped. Default solver limit: {} states.\n",
+         symmetry (D2). Supported (proposed D3): complete, no failed samples (a sample fails when \
+         it hits `max_attempts`), solve p99 and acc. p99 < {} ms, and timeout rate < {} %. A \
+         cell stops early once it has at least {EARLY_STOP_MIN_TIMEOUTS} timeouts and a timeout \
+         rate above {} % (`stopped:timeouts`), or {EARLY_STOP_MIN_FAILED} failed samples \
+         (`stopped:failures`); larger `n_colors` with the same capacity and `n_empty` are then \
+         skipped. Default solver limit: {} states.\n",
         P99_LIMIT_MS,
         TIMEOUT_RATE_LIMIT * 100.0,
         EARLY_STOP_FACTOR * TIMEOUT_RATE_LIMIT * 100.0,
@@ -736,6 +752,34 @@ mod tests {
         assert_eq!(cell.status, Status::StoppedTimeouts);
         assert_eq!(cell.samples, 16);
         assert!(!cell.supported());
+    }
+
+    #[test]
+    fn early_stop_on_failures() {
+        // One attempt per sample: most n_empty = 1 fills are unsolvable, so most samples fail.
+        let a = args(&[
+            "--samples",
+            "200",
+            "--batch",
+            "32",
+            "--max-attempts",
+            "1",
+            "--rollouts",
+            "0",
+        ]);
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(2)
+            .build()
+            .unwrap();
+        let p = Params {
+            n_colors: 6,
+            capacity: 3,
+            n_empty: 1,
+        };
+        let cell = run_cell(&Uniform, p, &a, &pool);
+        assert_eq!(cell.status, Status::StoppedFailures);
+        assert_eq!(cell.samples, 32);
+        assert!(cell.failed >= 10 && !cell.supported());
     }
 
     #[test]
