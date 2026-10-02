@@ -817,3 +817,36 @@ mod tests {
         std::fs::remove_dir_all(dir).unwrap();
     }
 }
+
+#[cfg(test)]
+mod report_tests {
+    use water_sort_core::{Params, is_supported};
+
+    /// The core `SUPPORTED` table must match the committed report cell by cell.
+    #[test]
+    fn supported_table_matches_report() {
+        let csv = include_str!("../../reports/uniform_stats.csv");
+        let mut lines = csv.lines();
+        let header: Vec<&str> = lines.next().unwrap().split(',').collect();
+        assert_eq!(header, super::CSV_HEADER.split(',').collect::<Vec<_>>());
+        let col = |name: &str| header.iter().position(|h| *h == name).unwrap();
+        let (c, k, e, s) = (
+            col("n_colors"),
+            col("capacity"),
+            col("n_empty"),
+            col("supported"),
+        );
+        let mut rows = 0;
+        for line in lines {
+            let fields: Vec<&str> = line.split(',').collect();
+            let params = Params {
+                n_colors: fields[c].parse().unwrap(),
+                capacity: fields[k].parse().unwrap(),
+                n_empty: fields[e].parse().unwrap(),
+            };
+            assert_eq!(is_supported(&params), fields[s] == "true", "{params:?}");
+            rows += 1;
+        }
+        assert_eq!(rows, 99);
+    }
+}

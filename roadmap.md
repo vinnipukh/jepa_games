@@ -130,23 +130,23 @@ pub struct GeneratedPuzzle {
 
 ### 2.1 Generation
 
-- [ ] Seed: 64 bits from OS entropy via `getrandom` (or an externally supplied seed).
-- [ ] PRNG: `ChaCha20Rng::seed_from_u64(seed)`.
-- [ ] Shuffle the multiset of `n_colors * capacity` units with Fisher-Yates, fill the first `n_colors` tubes, leave the remaining `n_empty` tubes empty.
-- [ ] Validate with the solver. If unsolvable or timed out, regenerate by continuing from the same PRNG stream.
-- [ ] Filters: discard already-solved states, discard states with `opt_moves < min_opt` (min_opt from config).
+- [x] Seed: 64 bits from OS entropy via `getrandom` (or an externally supplied seed).
+- [x] PRNG: `ChaCha20Rng::seed_from_u64(seed)`.
+- [x] Shuffle the multiset of `n_colors * capacity` units with Fisher-Yates, fill the first `n_colors` tubes, leave the remaining `n_empty` tubes empty.
+- [x] Validate with the solver. If unsolvable or timed out, regenerate by continuing from the same PRNG stream.
+- [x] Filters: discard already-solved states, discard states with `opt_moves < min_opt` (min_opt from config).
 
 ### 2.2 Uniformity validation
 
-- [ ] For a small configuration (e.g. 2 colors, capacity 2, 1 empty tube), enumerate all solvable states that pass the filters.
-- [ ] Draw enough samples from the generator and run a chi-square test. The test runs in CI.
-- [ ] Note: Fisher-Yates is uniform over labeled configurations (where tube order matters). It is not uniform over canonical classes, because the classes have different sizes. **Decided (D2): labeled-uniform is the target.**
+- [x] For a small configuration (e.g. 2 colors, capacity 2, 1 empty tube), enumerate all solvable states that pass the filters.
+- [x] Draw enough samples from the generator and run a chi-square test. The test runs in CI.
+- [x] Note: Fisher-Yates is uniform over labeled configurations (where tube order matters). It is not uniform over canonical classes, because the classes have different sizes. **Decided (D2): labeled-uniform is the target.**
 
 ### 2.3 Measurements
 
-- [ ] For each (`n_colors`, `capacity`, `n_empty`) combination: rejection rate, mean number of attempts, `opt_moves` distribution, solver time.
-- [ ] Reported via the `water_sort_cli stats` command.
-- [ ] Configurations where the solver cannot find the optimal solution in reasonable time are excluded from the supported range.
+- [x] For each (`n_colors`, `capacity`, `n_empty`) combination: rejection rate, mean number of attempts, `opt_moves` distribution, solver time.
+- [x] Reported via the `water_sort_cli stats` command.
+- [x] Configurations where the solver cannot find the optimal solution in reasonable time are excluded from the supported range.
 
 **Acceptance criterion:** The uniformity test passes; replaying the solution of every generated puzzle reaches a solved state; the same seed always produces the same puzzle.
 
@@ -268,7 +268,7 @@ Full log with reasoning: [docs/decisions.md](docs/decisions.md).
 
 1. **Definition of the Turan generator.** ✅ Decided (D1): time-seeded, strategy-based; default reverse scramble from a solved state.
 2. **Uniform over which space?** ✅ Decided (D2): labeled configurations. Phase 2.3 measures the fraction of symmetric puzzles; canonical correction only if that fraction matters.
-3. **Supported configuration range.** ⏳ Pending, from Phase 2.3 measurements. Proposed criterion: solver p99 < 1 s and timeout rate < 0.1 %.
+3. **Supported configuration range.** Proposed (D3), from the Phase 2.3 measurements in `reports/uniform_stats.md`: capacity 3 up to 12/12/10 colors, capacity 4 up to 11/11/8, capacity 5 up to 9/9/6 (for 1/2/3 empty tubes). Criterion: solver p99 < 1 s and timeout rate < 0.1 %.
 4. **Move limit.** Proposed (D4): `k = 4`, revisit after the RL baseline.
 5. **Star coefficients.** Proposed (D5): 0.10 / 0.25 / 0.50 as per-mille integers; to be updated as human player data comes in.
 6. **CI.** ✅ Decided (D6): GitHub Actions, Ubuntu + Windows.

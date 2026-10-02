@@ -15,6 +15,7 @@ pub mod seed;
 pub mod solver;
 pub mod stars;
 pub mod state;
+pub mod supported;
 pub mod symmetry;
 
 pub use canon::{canonical_full, canonical_hash, canonical_tubes, solver_key};
@@ -35,4 +36,5 @@ pub use seed::{splitmix64, time_seed};
 pub use solver::{SolveResult, SolverLimits, heuristic, replay, solve, solve_astar, solve_bfs};
 pub use stars::{Session, StarConfig, StarError, stars, thresholds};
 pub use state::{EMPTY, State, StateError};
+pub use supported::{SUPPORTED, SupportedRow, is_supported};
 pub use symmetry::is_symmetric;
