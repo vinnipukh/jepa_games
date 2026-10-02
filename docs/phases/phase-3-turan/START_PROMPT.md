@@ -76,7 +76,9 @@ KEY REQUIREMENTS (details in PLAN.md)
 - `steps` sweep (e.g. 10, 20, 40, 80, 160) on the supported configurations: mean/p50/p99
   opt_moves, rejection rate, extra-step distribution of the return-to-standard-layout step.
   Choose a default `steps` per configuration and record it (D14, status proposed).
-- Do NOT change D3 or the SUPPORTED table; D3 is awaiting the user's decision.
+- D3 is decided: only 1 or 2 empty tubes (MAX_SUPPORTED_EMPTY), 2 is the primary configuration.
+  Run every sweep / comparison with `--empty 1..=2` (the stats default) over the SUPPORTED cells.
+  Do not change D3 or the SUPPORTED table.
 
 WORK METHOD
 - One focused commit per task in PLAN.md (conventional commits: feat/test/chore/docs).

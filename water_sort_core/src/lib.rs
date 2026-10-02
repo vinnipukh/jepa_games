@@ -36,5 +36,5 @@ pub use seed::{splitmix64, time_seed};
 pub use solver::{SolveResult, SolverLimits, heuristic, replay, solve, solve_astar, solve_bfs};
 pub use stars::{Session, StarConfig, StarError, stars, thresholds};
 pub use state::{EMPTY, State, StateError};
-pub use supported::{SUPPORTED, SupportedRow, is_supported};
+pub use supported::{MAX_SUPPORTED_EMPTY, SUPPORTED, SupportedRow, is_supported};
 pub use symmetry::is_symmetric;

@@ -46,7 +46,7 @@ pub struct StatsArgs {
     #[arg(long, default_value = "3..=5")]
     pub capacity: Range,
     /// Range of empty-tube counts.
-    #[arg(long, default_value = "1..=3")]
+    #[arg(long, default_value = "1..=2")]
     pub empty: Range,
     /// Puzzles per cell.
     #[arg(long, default_value_t = 1000)]
@@ -843,7 +843,7 @@ mod tests {
 
 #[cfg(test)]
 mod report_tests {
-    use water_sort_core::{Params, is_supported};
+    use water_sort_core::{MAX_SUPPORTED_EMPTY, Params, is_supported};
 
     /// The core `SUPPORTED` table must match the committed report cell by cell.
     #[test]
@@ -867,7 +867,9 @@ mod report_tests {
                 capacity: fields[k].parse().unwrap(),
                 n_empty: fields[e].parse().unwrap(),
             };
-            assert_eq!(is_supported(&params), fields[s] == "true", "{params:?}");
+            // The report applies the measurement criterion; D3 also excludes n_empty > 2.
+            let expected = fields[s] == "true" && params.n_empty <= MAX_SUPPORTED_EMPTY;
+            assert_eq!(is_supported(&params), expected, "{params:?}");
             rows += 1;
         }
         assert_eq!(rows, 99);
