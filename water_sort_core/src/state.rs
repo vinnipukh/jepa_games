@@ -116,6 +116,57 @@ impl State {
         Self::from_tubes(params, &tubes)
     }
 
+    /// Builds a state with given fill heights (D14): tube `i` is filled bottom to top with the
+    /// next `heights[i]` units of `units`, in order.
+    ///
+    /// # Errors
+    ///
+    /// Rejects a wrong number of heights, a height above the capacity, a wrong number of units
+    /// (or heights that do not add up to it), and anything [`State::from_tubes`] rejects.
+    pub fn from_heights(params: Params, heights: &[u8], units: &[u8]) -> Result<Self, StateError> {
+        params.validate()?;
+        if heights.len() != params.n_tubes() {
+            return Err(StateError::TubeCount {
+                expected: params.n_tubes(),
+                got: heights.len(),
+            });
+        }
+        if let Some((tube, &h)) = heights
+            .iter()
+            .enumerate()
+            .find(|&(_, &h)| h > params.capacity)
+        {
+            return Err(StateError::TubeOverflow {
+                tube,
+                len: h.into(),
+                capacity: params.capacity,
+            });
+        }
+        if units.len() != params.n_units() {
+            return Err(StateError::UnitCount {
+                expected: params.n_units(),
+                got: units.len(),
+            });
+        }
+        let total: usize = heights.iter().map(|&h| usize::from(h)).sum();
+        if total != params.n_units() {
+            return Err(StateError::UnitCount {
+                expected: params.n_units(),
+                got: total,
+            });
+        }
+        let mut rest = units;
+        let tubes: Vec<&[u8]> = heights
+            .iter()
+            .map(|&h| {
+                let (tube, tail) = rest.split_at(h.into());
+                rest = tail;
+                tube
+            })
+            .collect();
+        Self::from_tubes(params, &tubes)
+    }
+
     /// The solved standard layout: tube `i` is full of color `i`, the last `n_empty` tubes are
     /// empty.
     ///

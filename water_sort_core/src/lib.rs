@@ -6,6 +6,7 @@
 pub mod canon;
 pub mod enumerate;
 pub mod generator;
+pub mod layout;
 pub mod metrics;
 pub mod moves;
 pub mod params;
@@ -19,11 +20,12 @@ pub mod supported;
 pub mod symmetry;
 
 pub use canon::{canonical_full, canonical_hash, canonical_tubes, solver_key};
-pub use enumerate::standard_fills;
+pub use enumerate::{distributed_fills, standard_fills};
 pub use generator::{
     Accepted, Evaluation, GenConfig, GenError, GeneratedPuzzle, Generator, MetricsConfig, Observer,
     Rejection, RejectionCounts, attempt_loop, evaluate, evaluate_counted,
 };
+pub use layout::{HeightCounts, Layout, UnknownLayout, sample_heights};
 pub use metrics::{DifficultyMetrics, compute_metrics};
 pub use moves::{
     InvalidReverseMove, Move, MoveError, ReverseMove, action_mask, apply, check, is_legal,
@@ -31,7 +33,7 @@ pub use moves::{
 };
 pub use params::{MAX_CAP, MAX_TUBES, Params, ParamsError};
 pub use puzzle_code::PuzzleCodeError;
-pub use sampling::{bounded_u32, fisher_yates};
+pub use sampling::{bounded_u32, bounded_u64, fisher_yates};
 pub use seed::{splitmix64, time_seed};
 pub use solver::{SolveResult, SolverLimits, heuristic, replay, solve, solve_astar, solve_bfs};
 pub use stars::{Session, StarConfig, StarError, stars, thresholds};
