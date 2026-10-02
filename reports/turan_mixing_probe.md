@@ -103,3 +103,67 @@ predecessor (`has_reverse_move` false), and their mean `E`:
 About 45 % of uniform standard puzzles (13–36 % distributed) are states that no pour can lead to.
 A rule that avoids such states excludes them by construction, so it would move Turan *further*
 from uniform on that axis, not closer.
+
+## 5. Option 2: a walk over forward and reverse pours
+
+Probe (same harness, 200 walks per cell, solver `max_states` 5e6, release): from the solved state,
+each step draws uniformly (`bounded_u32`) from the union of the legal forward pours
+([`legal_moves`]) and the reverse moves ([`reverse_moves`]), excluding the exact undo of the
+previous step unless nothing else is left. This is the simple random walk on the undirected pour
+graph. Forward pours can leave the solvable set, so endpoints are solved and unsolvable ones are
+rejected like uniform's. Earlier variants with a fixed forward probability `p` were far worse:
+`p = 0.5` and `p = 0.75` drift back towards the solved state (mean `opt` 2–8). `p = 0.25` is close
+to the union rule.
+
+### Distributed layout: `steps` is a real knob
+
+Mean `opt_moves` of the solvable endpoints. The last column is uniform's distributed mean
+(`reports/uniform_distributed_stats.md`).
+
+| config | 10 | 40 | 160 | 640 | 2560 | unsolvable at 640 | uniform |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 4x4x2 | 5.96 | 9.24 | 10.27 | 10.20 | 10.12 | 0.0 % | 10.6 |
+| 6x3x1 | 6.89 | 9.85 | 11.55 | 11.48 | 11.40 | 76.0 % | 11.5 |
+| 9x3x1 | 7.91 | 13.92 | 17.43 | 17.07 | 17.00 | 93.0 % | 18.1 |
+| 8x4x1 | 8.38 | 14.70 | 19.57 | 21.75 | 21.83 | 98.0 % | 23.3 |
+| 10x4x2 | 7.95 | 20.35 | 27.49 | 30.10 | 30.23 | 3.7 % | 30.3 |
+| 7x5x2 | 7.80 | 17.43 | 23.11 | 25.70 | 25.97 | 2.1 % | 26.5 |
+
+- Mean `opt_moves` grows with `steps` and levels off between 160 and 640 steps, at 94–100 % of
+  uniform's mean. The walk mixes instead of being absorbed.
+- The unsolvable share of endpoints converges to roughly uniform's own unsolvable rate (uniform
+  distributed: 76.7 % at 6x3x1, 95.9 % at 9x3x1). Proving these unsolvable is cheap: 5–80 states
+  expanded per walk with one empty tube.
+- Solver cost per walk at 640 steps: about 10 000 states expanded at 10x4x2 and 4 500 at 7x5x2.
+  That is the cost of uniform puzzles of the same length, because they are equally hard.
+- The walk itself is cheap: one `legal_moves` and one `reverse_moves` per step, under 1 ms for
+  2 560 steps.
+- Forced undos (dead-end leaves, where the walk can only bounce back): 0 with two empty tubes,
+  about 1 per 65 steps with one.
+
+### Standard layout: the return step does the mixing
+
+Same walk, then continued until the heights are standard (`max_extra_steps` 2000):
+
+| config | steps | not returned | extra p50 / p90 / p99 | opt mean | uniform (standard) |
+|---|---:|---:|---:|---:|---:|
+| 4x4x2 | 40 / 160 / 640 | 0 % | ≈ 50 / 180 / 330 | 10.74 / 11.09 / 11.07 | 11.2 |
+| 6x3x1 | 40 / 160 / 640 | 0 % | ≈ 4 / 20 / 60 | 10.91 / 11.87 / 12.05 | 12.1 |
+| 9x3x1 | 40 / 160 / 640 | 0 % | ≈ 5 / 30–55 / 50–140 | 15.35 / 18.07 / 18.10 | 18.6 |
+| 8x4x1 | 40 / 160 / 640 | 0 % | 7–28 / 40–154 / 106–409 | 15.84 / 19.25 / 23.00 | 23.9 |
+| 10x4x2 | 40 / 160 / 640 | 3.5–4 % | ≈ 300–380 / 1 100 / 1 800 | 29.19 / 30.56 / 31.17 | 31.3 |
+| 7x5x2 | 40 / 160 / 640 | 12.5–15.5 % | ≈ 400–650 / 1 500 / 1 990 | 25.26 / 26.33 / 27.17 | 27.3 |
+
+With two empty tubes, a random state rarely has standard heights (0.5–2 % of endpoints), so the
+return step needs hundreds of extra steps. Those steps are themselves mixing steps, so even
+`steps = 40` gives nearly uniform-length puzzles at 10x4x2 (29.2 of 31.3). In the standard layout,
+`steps` is a knob only with one empty tube. With two, the return is slow: 4–16 % of walks are not
+back after 2 000 extra steps, and those count as construction rejections.
+
+### What this means for D1
+
+As `steps` grows, this walk approaches its stationary distribution: uniform over the connected
+pour graph, weighted by each state's number of moves. Its mean `opt_moves` is already within
+0–6 % of uniform's. Long walks therefore make Turan nearly a second uniform generator, which works
+against D1's goal of a *different* distribution. Short and medium `steps` (10–160) give the
+range between the two.
