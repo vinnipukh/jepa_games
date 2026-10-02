@@ -26,7 +26,7 @@ API (thin wrappers; no logic in Python):
 
 | Python | Rust |
 |---|---|
-| `generate(generator: str, params: Params, seed: int \| None = None, config=None, strategy=None) -> Puzzle` | `Generator::generate` (`fresh_seed` when `seed` is `None`) |
+| `generate(generator: str, params: Params, seed: int \| None = None, config=None, strategy=None, layout="standard") -> Puzzle` | `Generator::generate` (`fresh_seed` when `seed` is `None`) |
 | `solve(state, max_states=..., max_time=None) -> SolveResult` | `solver::solve` |
 | `step(state, move) -> (State, units_moved)` | `moves::apply` (raises `ValueError` on an illegal move) |
 | `legal_moves(state) -> list[tuple[int, int]]` | |
@@ -49,13 +49,13 @@ WaterSortEnv(generator="uniform" | "turan", params=Params(6, 4, 2), min_opt=...,
 ```
 
 - `reset(seed=None, options=None)`: the puzzle seed is drawn from `self.np_random` (Gymnasium convention), so `reset(seed=s)` gives a reproducible sequence of puzzles for both generators. `options={"puzzle_seed": ...}` loads a specific generator seed, and `options={"puzzle_code": ...}` loads a fixed puzzle.
-- Constructor takes `strategy=` for Turan (default `scramble`, with the Phase 3 `steps` default for the configuration).
+- Constructor takes `layout="standard"|"distributed"` for both generators (D14) and `strategy=` for Turan (default `scramble`, with the Phase 3 `steps` default for the configuration).
 - **Observation:** `Box(0, 1, (n_tubes, capacity, n_colors + 1), int8)`, one-hot with channel `n_colors` = empty.
 - **Action:** `Discrete(n_tubes²)`, index `from * n_tubes + to`. `info["action_mask"]` is provided per step, plus an `action_masks()` method for sb3-contrib `MaskablePPO`.
 - **Illegal action:** state unchanged, reward −1, `info["illegal"] = True`, counts toward the move limit. No exception, since `check_env` and unmasked agents must not crash.
 - **Termination:** solved → `terminated=True`. Dead end (no legal moves, or with `dead_end_check` the solver proves unsolvable) → `terminated=True`, `info["dead_end"]=True`. Move limit `k * opt_moves` (D4) → `truncated=True`.
 - **Reward:** −1 per move. Optional potential-based shaping `γΦ(s') − Φ(s)` with `Φ = −color_changes(s)`. Nothing else, so the optimal policy is unchanged (Ng et al. 1999).
-- **`info`:** `opt_moves`, `moves_so_far`, `seed`, `generator_variant`, `puzzle_code`, `canonical_hash`, `action_mask`, optional `solvable`.
+- **`info`:** `opt_moves`, `moves_so_far`, `seed`, `generator_variant`, `layout`, `puzzle_code`, `canonical_hash`, `action_mask`, optional `solvable`.
 - **Vectorized:** works with `gymnasium.vector.SyncVectorEnv` / `AsyncVectorEnv`. Additionally `WaterSortVectorEnv(num_envs)` is backed by `batch_step` with autoreset, for throughput.
 
 ## 5.3 Trajectory logger

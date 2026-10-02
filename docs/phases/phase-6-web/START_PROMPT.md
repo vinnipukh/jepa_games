@@ -8,7 +8,7 @@ Run this after Phase 5 is merged. The acceptance check compares the web against 
 You are implementing Phase 6 (browser game, Rust compiled to WASM) of the jepa_games project.
 
 Repo: github.com/vinnipukh/jepa_games (private). Start from an up-to-date `main` and create
-branch `phase-6-web`.
+branch `phase-6-web`. Read CLAUDE.md at the repo root first (commands, rules, workflow).
 
 STATE OF THE PROJECT
 - Rust workspace, toolchain pinned to 1.99.0 (install rustup if missing; add the
@@ -31,7 +31,7 @@ web/app/. All rule enforcement and move counting go through core's Session; Type
 renders and forwards clicks.
 
 KEY REQUIREMENTS (details in PLAN.md)
-- wasm-bindgen API: generate(generator, params, seed?, strategy?), from_code(code), Session
+- wasm-bindgen API: generate(generator, params, seed?, strategy?, layout?), from_code(code), Session
   wrapper (pour, undo, restart, moves_counted, is_solved, stars), legal_moves,
   export_trajectory(). 64-bit seeds and hashes cross the JS boundary as BigInt or hex strings,
   never as JS numbers.
@@ -42,7 +42,8 @@ KEY REQUIREMENTS (details in PLAN.md)
 - Generation and solving run in a Web Worker. A wall-clock timeout is allowed only as a UI guard;
   the accepted puzzle is still decided by the state-count limit (D11).
 - Screens: play (tubes, click source then target, invalid target = shake and no move counted,
-  move counter, undo, restart, new puzzle, generator + strategy selector, params limited to
+  move counter, undo, restart, new puzzle, generator + strategy + layout (standard / distributed,
+  D14; draw half-empty tubes clearly) selector, params limited to
   is_supported, seed + puzzle code display with copy, open by generator + seed or puzzle code),
   completion (player moves, opt_moves, stars, optimal-solution replay, export, next), shareable
   URL (?code=... or ?gen=...&seed=...&c=..&k=..&e=.., Turan adds strategy and steps).

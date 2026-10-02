@@ -147,3 +147,14 @@ Recorded while implementing `uniform_water_sort` and `water_sort_cli stats`. Non
 - **D3 criterion tightened at review** (see D3): it also requires a whole-generation p99 < 1 s and attempts p99 ≤ `max_attempts / 10` (`ATTEMPTS_HEADROOM`). The Markdown report gains a `gen ms p50 / p99` column.
 - **`standard_fills` is public in core** (not a test-only helper), so the uniform crate's tests can enumerate the accepted set with the same `evaluate`.
 - **The 2-color uniformity smoke test uses its own negative control.** Its accepted set (4 states) is so symmetric that the off-by-one bound (Sattolo) still hits it uniformly (chi² ≈ 0). It uses a second off-by-one bug instead (the loop starts at `len - 2`, so the last unit never moves). The 3-color test keeps the Sattolo control.
+
+## D14 — Two layouts in both generators: standard and distributed — decided (2026-10-02)
+
+User request: puzzles may start with half-empty tubes, in **both** generators.
+
+- Free space is always a whole number of tubes. Every color has exactly `capacity` units (a solved tube is full and single-colored), so `n_tubes × capacity − n_colors × capacity = n_empty × capacity` slots are free. "0 empty tubes with a half-empty tube" is impossible. What is possible is spreading 1 or 2 tubes' worth of free space over several tubes. `n_empty` keeps meaning "tubes' worth of free space" (1 or 2, D3).
+- `Layout::Standard` (default): the first `n_colors` tubes full, the last `n_empty` empty. Its output stays bit-identical to Phase 2.
+- `Layout::Distributed`: any fill heights `h_i ∈ [0, capacity]` summing to `n_colors × capacity`, units packed from the bottom. Uniform draws the height vector exactly uniformly (DP counts, `bounded_u64`) and then Fisher-Yates over the units. Every height vector has the same number of unit arrangements, so this stays labeled-uniform (D2). Turan's `Scramble` skips the return-to-standard step.
+- `Layout` lives in core and is a field of both generators. It appears in `variant()` and therefore in every record (Phase 4), the Python env (Phase 5), the web UI selector (Phase 6) and the evaluation axes (Phase 7).
+- Comparisons are made within a layout: uniform-standard vs turan-standard, and uniform-distributed vs turan-distributed. Uniform-standard vs uniform-distributed measures the layout alone.
+- The D3 limits were measured for `Standard`. Phase 3 measures `Distributed` and proposes its limits as a D3 addendum; the user decides.

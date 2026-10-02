@@ -160,6 +160,8 @@ pub struct GeneratedPuzzle {
 > - **Default strategy `Scramble { steps }`:** random reverse pours from a solved state, then a return to the standard layout (full tubes + empty tubes). Solvable by construction, with a different distribution from uniform over the same set of puzzles.
 > - **Optional strategy `Constrained`:** Fisher-Yates that rejects vertically adjacent same-color units.
 >
+> **Decided (D14, 2026-10-02): two layouts in both generators.** `Standard` (full tubes + whole empty tubes, the classic game) and `Distributed`, where the `n_empty` tubes' worth of free space is spread over the tubes, so puzzles can start with half-empty tubes. Phase 3 adds `Distributed` to uniform too, measures its supported range and compares the generators within each layout.
+>
 > Plan: [docs/phases/phase-3-turan/PLAN.md](docs/phases/phase-3-turan/PLAN.md).
 
 Whatever the definition turns out to be, the following conditions apply:

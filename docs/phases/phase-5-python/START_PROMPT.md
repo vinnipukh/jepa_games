@@ -9,7 +9,7 @@ You are implementing Phase 5 (Python binding + Gymnasium environment + trajector
 the jepa_games project.
 
 Repo: github.com/vinnipukh/jepa_games (private). Start from an up-to-date `main` and create
-branch `phase-5-python`.
+branch `phase-5-python`. Read CLAUDE.md at the repo root first (commands, rules, workflow).
 
 STATE OF THE PROJECT
 - Rust workspace, toolchain pinned to 1.99.0 (install rustup if `cargo` is missing). CI:
@@ -34,12 +34,13 @@ Python CI job. No game logic in Python: every rule goes through the Rust core.
 KEY REQUIREMENTS (details in PLAN.md)
 - PyO3 + maturin, abi3 wheels (abi3-py310). Use `uv venv --python 3.12` for development. Pick the
   newest PyO3 / numpy crate versions that support the pinned Rust toolchain; record the choice.
-- API: generate(generator, params, seed=None, config=None, strategy=None), solve, step,
+- API: generate(generator, params, seed=None, config=None, strategy=None, layout="standard"), solve, step,
   legal_moves, action_mask, stars, canonical_hash, State/Puzzle pyclasses (frozen, picklable via
   puzzle code, to_numpy/from_numpy), batch_step and batch_generate releasing the GIL
   (py.allow_threads + rayon). Map Rust errors to Python exceptions (illegal move -> ValueError,
   stars below optimum -> a dedicated exception).
-- WaterSortEnv(generator="uniform"|"turan", params=..., strategy=..., move_limit_k=4, ...):
+- WaterSortEnv(generator="uniform"|"turan", params=..., layout="standard"|"distributed" (D14),
+  strategy=..., move_limit_k=4, ...):
   observation Box(0,1,(n_tubes, capacity, n_colors+1), int8) one-hot; action Discrete(n_tubes^2)
   with info["action_mask"] and an action_masks() method; illegal action = no state change,
   reward -1, info["illegal"]=True, counts toward the move limit; reward -1 per move with optional

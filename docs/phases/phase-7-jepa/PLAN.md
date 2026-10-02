@@ -53,6 +53,7 @@ python/jepa/          # separate package from the binding; depends on jepa_water
 - Breakdown: by `opt_moves` bucket (quartiles of the test set) and by generator.
 - **Cross-evaluation matrix:** {train uniform, train turan} × {test uniform, test turan}, with cross-generator leakage removed (Phase 4). Both generators cover the same puzzles (standard layout) with different distributions (D1, Phase 3), so the off-diagonal cells measure distribution-shift generalization. Report results matched by `opt_moves` bucket, so a gap is not just a difficulty difference.
 - Optional: a sweep over Turan `steps` as a controllable shift axis, from near-solved puzzles to well-mixed ones.
+- **Layout axis (D14):** run the matrix per layout (standard, distributed), plus {train standard} × {test distributed} and the reverse for each generator, to measure transfer across starting layouts.
 - All evaluation uses fixed test puzzles (puzzle codes) and fixed policy seeds; 3 training seeds per model, reported as mean ± std.
 
 ## Data interface requirements (on earlier phases)
