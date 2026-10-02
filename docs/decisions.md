@@ -93,3 +93,15 @@ The roadmap's "sort tubes, then relabel colors by first appearance" is **not** a
 ## D11 — Generation never uses wall-clock limits — proposed
 
 Solver timeouts during generation are by **expanded-state count only**. A time limit would make accept/reject depend on machine speed and break reproducibility from a seed. Time limits remain available for interactive use (web, CLI `solve`).
+
+## D12 — Phase 1 implementation refinements — decided (2026-10-02)
+
+Recorded while implementing `water_sort_core`. None of these changes a decision above; they fix details the plans left open or stated loosely.
+
+- **`canonical_full` algorithm.** D8's definition (minimum over all color relabelings of the sorted-tube encoding) is kept exactly. The plan's sketch, "colors with unique signatures are fixed by signature order", would give a valid canonical form but *not* that minimum, so it would fail the planned brute-force test. Instead: for a fixed relabeling, sorting minimizes the concatenation over tube orders, and for a fixed tube order, first-appearance labeling minimizes over relabelings, so the minimum equals the minimum over tube orders of the first-appearance labeled concatenation. That is built tube by tube, branching only over distinct tube contents that tie for the smallest next block. Highly symmetric puzzles (e.g. 8 copies of a 2-color pattern) made this exponential (3.6 s), so it also prunes with automorphisms found from equal leaves, as nauty does; the worst measured case is now about 12 ms in release. Checked against the `n!` brute force for `n_colors ≤ 6`, including symmetric layouts.
+- **`max_states` counts stored states**, not expanded ones, so it bounds solver memory. `states_expanded` is still reported separately.
+- **`GenConfig` holds `max_states`, not a `SolverLimits`.** `GenConfig::solver_limits()` always returns `max_time: None`, so D11 holds by construction.
+- **`Generator::fresh_seed` returns `Result<u64, GenError>`.** Uniform's OS-entropy seed can fail (`GenError::Entropy`); D7 already listed that error.
+- **Metrics RNG.** Core depends only on `rand_core`, so `compute_metrics::<R>` is generic over the RNG and both generators pass `ChaCha20Rng`, seeded from the canonical hash as planned. Rollouts and dead-end ratios run on `canonical_full(state)`, which makes all metrics except `states_expanded` invariant under tube and color permutation. Timeouts are left out of the dead-end ratio denominators.
+- **Solution replay** matches each search edge to a real move with the exact `canonical_full`, because the approximate `solver_key` can give symmetric states different keys.
+- **Golden vectors** store 64-bit values (seeds, hashes) as 16-digit hex strings, because JSON numbers above 2^53 are not exact in JavaScript.

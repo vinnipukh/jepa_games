@@ -38,7 +38,7 @@ jepa_games/
 
 > **Status: done (2026-10-02).** Private repo `vinnipukh/jepa_games`, toolchain pinned to 1.99.0. Plan: [docs/phase-0-workspace.md](docs/phase-0-workspace.md).
 
-Detailed plans for every phase live in [docs/](docs/README.md). Decisions made after this roadmap was written are recorded in [docs/decisions.md](docs/decisions.md) (D1–D11) and override the text below where they differ.
+Detailed plans for every phase live in [docs/](docs/README.md). Decisions made after this roadmap was written are recorded in [docs/decisions.md](docs/decisions.md) (D1–D12) and override the text below where they differ.
 
 ---
 
@@ -46,47 +46,47 @@ Detailed plans for every phase live in [docs/](docs/README.md). Decisions made a
 
 ### 1.1 State representation
 
-- [ ] Parameters: `n_colors`, `capacity` (default 4), `n_empty` (default 2). Number of tubes = `n_colors + n_empty`.
-- [ ] Tube contents stored bottom to top in a fixed-size array; colors as `u8`, with a separate value for an empty cell.
-- [ ] Solved state definition: every non-empty tube is full and single-colored.
+- [x] Parameters: `n_colors`, `capacity` (default 4), `n_empty` (default 2). Number of tubes = `n_colors + n_empty`.
+- [x] Tube contents stored bottom to top in a fixed-size array; colors as `u8`, with a separate value for an empty cell.
+- [x] Solved state definition: every non-empty tube is full and single-colored.
 
 ### 1.2 Move rules
 
-- [ ] A move is a single pour (`from`, `to`).
-- [ ] Validity: `from` is not empty, `from != to`, `to` is empty or the top color of `to` matches the top color of `from`, and `to` has at least one free slot.
-- [ ] Transfer: all contiguous same-colored units at the top of `from` are moved, as many as fit in `to`.
-- [ ] Functions `legal_moves(state)` and `action_mask(state) -> [bool; n_tubes * n_tubes]`.
-- [ ] Redundant move filter (inside the solver only, not in the game): pouring an entire single-colored tube into an empty tube.
+- [x] A move is a single pour (`from`, `to`).
+- [x] Validity: `from` is not empty, `from != to`, `to` is empty or the top color of `to` matches the top color of `from`, and `to` has at least one free slot.
+- [x] Transfer: all contiguous same-colored units at the top of `from` are moved, as many as fit in `to`.
+- [x] Functions `legal_moves(state)` and `action_mask(state) -> [bool; n_tubes * n_tubes]`.
+- [x] Redundant move filter (inside the solver only, not in the game): pouring an entire single-colored tube into an empty tube.
 
 ### 1.3 Canonical hash
 
-- [ ] Tube order symmetry: sort the tubes before hashing.
-- [ ] Color permutation symmetry: relabel colors by order of first appearance (over the sorted tubes).
-- [ ] Two separate functions: `canonical_tubes(state)` (tube order only) and `canonical_full(state)` (tube order + color). The solver uses the latter, and so does dataset duplicate detection.
+- [x] Tube order symmetry: sort the tubes before hashing.
+- [x] Color permutation symmetry: relabel colors by order of first appearance (over the sorted tubes).
+- [x] Two separate functions: `canonical_tubes(state)` (tube order only) and `canonical_full(state)` (tube order + color). The solver uses the latter, and so does dataset duplicate detection.
 - **Decision D8:** sort-then-relabel is not an exact canonical form (relabeling changes the sort order). `canonical_full` is the exact minimum over color relabelings and is used for dedup and splits. The solver uses a cheaper approximate `solver_key`. The hash is xxh3-64 over a fixed encoding.
 
 ### 1.4 Solver
 
-- [ ] BFS (optimal; for small puzzles and as a test reference).
-- [ ] A* or IDA* with an admissible heuristic. Heuristic: the number of adjacent color changes within tubes. A legal pour never creates a new color change and removes at most one, so this value never exceeds the remaining optimal distance.
-- [ ] Output: `Solvable { opt_moves, solution: Vec<Move>, states_expanded }`, `Unsolvable { states_expanded }`, or `Timeout`.
-- [ ] Time and state-count limits are configurable.
+- [x] BFS (optimal; for small puzzles and as a test reference).
+- [x] A* or IDA* with an admissible heuristic. Heuristic: the number of adjacent color changes within tubes. A legal pour never creates a new color change and removes at most one, so this value never exceeds the remaining optimal distance.
+- [x] Output: `Solvable { opt_moves, solution: Vec<Move>, states_expanded }`, `Unsolvable { states_expanded }`, or `Timeout`.
+- [x] Time and state-count limits are configurable.
 - **Decision D9:** heuristic changed to `segments − n_colors`. It is still admissible and never weaker than the color-change count.
 - **Decision D11:** generation uses the state-count limit only. A wall-clock limit would make accept/reject depend on machine speed.
-- [ ] Test: on 10,000 random small puzzles, A*/IDA* must return the same `opt_moves` as BFS.
+- [x] Test: on 10,000 random small puzzles, A*/IDA* must return the same `opt_moves` as BFS.
 
 ### 1.5 Star metric
 
-- [ ] `stars(player_moves, opt) -> u8`, with `extra = player_moves - opt`:
+- [x] `stars(player_moves, opt) -> u8`, with `extra = player_moves - opt`:
   - 5★: `extra == 0`
   - 4★: `extra <= t4`, `t4 = max(1, ceil(0.10 * opt))`
   - 3★: `extra <= t3`, `t3 = max(t4 + 1, ceil(0.25 * opt))`
   - 2★: `extra <= t2`, `t2 = max(t3 + 1, ceil(0.50 * opt))`
   - 1★: solved but exceeded `t2`
-- [ ] Coefficients (0.10 / 0.25 / 0.50) are read from config.
+- [x] Coefficients (0.10 / 0.25 / 0.50) are read from config.
 - **Decision D5:** coefficients are stored as per-mille integers (100 / 250 / 500) and thresholds use integer `ceil`. In floating point, `0.10 * 30 = 3.0000000000000004`, which gives 4 instead of 3.
-- [ ] The case `player_moves < opt` returns a separate error/warning rather than panicking (it indicates a solver bug).
-- [ ] The counted value is the total number of pours made on that puzzle. Undo does not decrement the counter, restart does not reset it.
+- [x] The case `player_moves < opt` returns a separate error/warning rather than panicking (it indicates a solver bug).
+- [x] The counted value is the total number of pours made on that puzzle. Undo does not decrement the counter, restart does not reset it.
 
 ### 1.6 Generator trait
 
@@ -114,13 +114,15 @@ pub struct GeneratedPuzzle {
 
 ### 1.7 Difficulty metrics
 
-- [ ] `opt_moves`
-- [ ] `states_expanded` (number of states the solver explored)
-- [ ] Number of color changes in the initial state
-- [ ] Random policy failure rate: out of N random (legal moves only) rollouts, how many hit a dead end
-- [ ] Dead-end ratio: what fraction of the states reachable 1 and 2 moves from the start are unsolvable
+- [x] `opt_moves`
+- [x] `states_expanded` (number of states the solver explored)
+- [x] Number of color changes in the initial state
+- [x] Random policy failure rate: out of N random (legal moves only) rollouts, how many hit a dead end
+- [x] Dead-end ratio: what fraction of the states reachable 1 and 2 moves from the start are unsolvable
 
 **Acceptance criterion:** Unit tests for rules, solver and the star function; property-based tests (`proptest`) for "unit counts are preserved after every legal move", "applying the solution sequence reaches a solved state", and "the canonical hash is invariant under tube permutation and color permutation".
+
+> **Status: done (2026-10-02).** Plan: [docs/phase-1-core.md](docs/phase-1-core.md). Implementation refinements are recorded in D12.
 
 ---
 
