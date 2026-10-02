@@ -43,7 +43,7 @@ jobs:
       matrix: { os: [ubuntu-latest, windows-latest] }
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable   # reads rust-toolchain.toml
         with: { components: "rustfmt, clippy" }
       - uses: Swatinem/rust-cache@v2
@@ -67,7 +67,7 @@ jobs:
 - [x] `#![forbid(unsafe_code)]` in `water_sort_core/src/lib.rs`
 - [x] `.github/workflows/ci.yml`
 - [x] `.gitattributes` (`* text=auto eol=lf`) so `cargo fmt --check` behaves the same on Windows
-- [ ] Push to GitHub, confirm CI is green on both OSes
+- [x] Push to GitHub, confirm CI is green on both OSes
 
 ## Acceptance
 
@@ -75,4 +75,4 @@ jobs:
 
 ## Risks / open points
 
-- Repository: `jepa_games` on GitHub.
+- Repository: private `vinnipukh/jepa_games` on GitHub.

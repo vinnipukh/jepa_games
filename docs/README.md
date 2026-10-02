@@ -4,7 +4,7 @@ This folder holds the detailed implementation plan for each phase in [`../roadma
 
 | Phase | Plan | Depends on | Status |
 |---|---|---|---|
-| 0 | [Workspace setup](phase-0-workspace.md) | — | local green, CI pending |
+| 0 | [Workspace setup](phase-0-workspace.md) | — | done (2026-10-02) |
 | 1 | [`water_sort_core`](phase-1-core.md) | 0 | not started |
 | 2 | [`uniform_water_sort`](phase-2-uniform.md) | 1 | not started |
 | 3 | [`turan_water_sort`](phase-3-turan.md) | 1, 2 | not started |
