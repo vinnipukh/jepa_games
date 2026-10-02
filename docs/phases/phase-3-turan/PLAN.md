@@ -138,7 +138,7 @@ Roadmap conditions: implements `Generator`, no rules outside core, the same solv
 
 ## Status
 
-Implemented (2026-10-02). Refinements and the measured behavior of the reverse walk (absorbed after about `opt_moves` steps, so `steps` saturates at 20–40 and the standard layout is reached only when the absorbing state already is one) are recorded in D15. The distributed supported range (D3 addendum) and the Turan defaults (D15) are **proposed**. Reports: `reports/uniform_distributed_stats.md`, `reports/turan_steps_sweep.md`, `reports/uniform_vs_turan_standard.md`, `reports/uniform_vs_turan_distributed.md`, `reports/uniform_standard_vs_distributed.md`.
+Implemented (2026-10-02). Refinements and the measured behavior of the reverse walk (absorbed after about `opt_moves` steps, so `steps` saturates at 20–40 and the standard layout is reached only when the absorbing state already is one) are recorded in D15. The distributed supported range (D3 addendum) is decided; the Turan defaults (D15) are **proposed**. Reports: `reports/uniform_distributed_stats.md`, `reports/turan_steps_sweep.md`, `reports/uniform_vs_turan_standard.md`, `reports/uniform_vs_turan_distributed.md`, `reports/uniform_standard_vs_distributed.md`.
 
 ## Risks / open points
 

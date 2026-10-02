@@ -69,11 +69,11 @@ What limits each row:
 
 D2 follow-up (same report): the fraction of generated puzzles with a nontrivial symmetry is large only for 2 colors (13–35 %) and 3 colors (0.5–10 %). From 4 colors on it is ≤ 9 % at capacity 3 and ≤ 1.6 % at capacity 4 and 5, and it falls toward 0 as colors increase. Recommendation: no `--canonical-uniform` mode for now. The labeled/canonical gap matters only for tiny configurations.
 
-### D3 addendum — distributed layout range — proposed (Phase 3, user decides)
+### D3 addendum — distributed layout range — decided (2026-10-02, user)
 
 Evidence: [`reports/uniform_distributed_stats.md`](../reports/uniform_distributed_stats.md) (`stats --generator uniform --layout distributed`, same grid, criterion and seeds as above, 1000 puzzles per cell; 15 min wall time). It ran on the cloud session machine (4 cores, 3 worker threads), **not** on the desktop that measured the standard table. Calibration on the same machine ([`reports/uniform_standard_calibration_cloud.csv`](../reports/uniform_standard_calibration_cloud.csv), standard layout, same seeds): 12 × 4 × 2 solver p99 783 ms vs 1003 ms on the desktop, so cloud timings are scaled by 1.28 before applying the 1 s limit.
 
-Proposed `SUPPORTED_DISTRIBUTED` (`n_colors` from 2 up to):
+`SUPPORTED_DISTRIBUTED` (`n_colors` from 2 up to), accepted as proposed:
 
 | capacity \ `n_empty` | 1 | 2 |
 |---|---|---|
