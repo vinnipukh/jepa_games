@@ -1000,4 +1000,29 @@ mod report_tests {
         }
         assert_eq!(rows, 99);
     }
+
+    /// Every proposed distributed cell meets the criterion in the committed distributed report
+    /// (which ran on a faster machine, so the table is stricter where solver time binds).
+    #[test]
+    fn distributed_table_is_within_report() {
+        use water_sort_core::{Layout, is_supported_in};
+        let csv = include_str!("../../reports/uniform_distributed_stats.csv");
+        let mut lines = csv.lines();
+        let header: Vec<&str> = lines.next().unwrap().split(',').collect();
+        let col = |name: &str| header.iter().position(|h| *h == name).unwrap();
+        let mut supported = 0;
+        for line in lines {
+            let fields: Vec<&str> = line.split(',').collect();
+            let params = Params {
+                n_colors: fields[col("n_colors")].parse().unwrap(),
+                capacity: fields[col("capacity")].parse().unwrap(),
+                n_empty: fields[col("n_empty")].parse().unwrap(),
+            };
+            if is_supported_in(&params, Layout::Distributed) {
+                assert_eq!(fields[col("supported")], "true", "{params:?}");
+                supported += 1;
+            }
+        }
+        assert_eq!(supported, 54);
+    }
 }

@@ -13,6 +13,7 @@
 //! at most a tenth of `max_attempts`. In every measured row the supported cells form a prefix of
 //! `n_colors`.
 
+use crate::layout::Layout;
 use crate::params::Params;
 
 /// Largest supported `n_empty` (D3).
@@ -46,10 +47,39 @@ pub const SUPPORTED: &[SupportedRow] = &[
     row(5, 2, 9),
 ];
 
-/// Whether `params` lies in [`SUPPORTED`].
+/// The supported range for [`Layout::Distributed`] (D3 addendum, **proposed** in Phase 3; the
+/// user decides). Measured with `reports/uniform_distributed_stats.md` (cloud machine, timings
+/// scaled by the 1.28× calibration factor against the desktop that measured [`SUPPORTED`], see
+/// `reports/uniform_standard_calibration_cloud.csv`). Spreading the free space makes far fewer
+/// fills unsolvable (one more color at capacity 5 with one empty tube), but costs the solver
+/// more with two empty tubes (one color fewer at capacity 5).
+pub const SUPPORTED_DISTRIBUTED: &[SupportedRow] = &[
+    row(3, 1, 12),
+    row(3, 2, 12),
+    row(4, 1, 9),
+    row(4, 2, 11),
+    row(5, 1, 8),
+    row(5, 2, 8),
+];
+
+/// The supported rows of `layout`.
+pub const fn supported_rows(layout: Layout) -> &'static [SupportedRow] {
+    match layout {
+        Layout::Standard => SUPPORTED,
+        Layout::Distributed => SUPPORTED_DISTRIBUTED,
+    }
+}
+
+/// Whether `params` lies in the standard-layout range [`SUPPORTED`]. Same as
+/// `is_supported_in(params, Layout::Standard)`.
 pub fn is_supported(params: &Params) -> bool {
+    is_supported_in(params, Layout::Standard)
+}
+
+/// Whether `params` is supported for `layout` ([`supported_rows`]).
+pub fn is_supported_in(params: &Params, layout: Layout) -> bool {
     params.validate().is_ok()
-        && SUPPORTED.iter().any(|r| {
+        && supported_rows(layout).iter().any(|r| {
             r.capacity == params.capacity
                 && r.n_empty == params.n_empty
                 && (r.min_colors..=r.max_colors).contains(&params.n_colors)
@@ -86,7 +116,29 @@ mod tests {
     }
 
     #[test]
+    fn layout_lookups() {
+        let d = Layout::Distributed;
+        assert!(is_supported_in(&p(8, 5, 1), d));
+        assert!(!is_supported_in(&p(8, 5, 1), Layout::Standard));
+        assert!(!is_supported_in(&p(9, 5, 2), d));
+        assert!(is_supported_in(&p(11, 4, 2), d));
+        assert!(!is_supported_in(&p(6, 4, 3), d));
+        assert_eq!(
+            is_supported(&p(9, 5, 2)),
+            is_supported_in(&p(9, 5, 2), Layout::Standard)
+        );
+    }
+
+    #[test]
     fn rows_are_unique_and_valid() {
+        for (i, r) in SUPPORTED_DISTRIBUTED.iter().enumerate() {
+            assert!(
+                SUPPORTED_DISTRIBUTED[..i]
+                    .iter()
+                    .all(|q| (q.capacity, q.n_empty) != (r.capacity, r.n_empty))
+            );
+            assert!((1..=MAX_SUPPORTED_EMPTY).contains(&r.n_empty));
+        }
         for (i, r) in SUPPORTED.iter().enumerate() {
             assert!(r.min_colors <= r.max_colors);
             assert!((1..=MAX_SUPPORTED_EMPTY).contains(&r.n_empty));

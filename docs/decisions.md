@@ -69,6 +69,22 @@ What limits each row:
 
 D2 follow-up (same report): the fraction of generated puzzles with a nontrivial symmetry is large only for 2 colors (13–35 %) and 3 colors (0.5–10 %). From 4 colors on it is ≤ 9 % at capacity 3 and ≤ 1.6 % at capacity 4 and 5, and it falls toward 0 as colors increase. Recommendation: no `--canonical-uniform` mode for now. The labeled/canonical gap matters only for tiny configurations.
 
+### D3 addendum — distributed layout range — proposed (Phase 3, user decides)
+
+Evidence: [`reports/uniform_distributed_stats.md`](../reports/uniform_distributed_stats.md) (`stats --generator uniform --layout distributed`, same grid, criterion and seeds as above, 1000 puzzles per cell; 15 min wall time). It ran on the cloud session machine (4 cores, 3 worker threads), **not** on the desktop that measured the standard table. Calibration on the same machine ([`reports/uniform_standard_calibration_cloud.csv`](../reports/uniform_standard_calibration_cloud.csv), standard layout, same seeds): 12 × 4 × 2 solver p99 783 ms vs 1003 ms on the desktop, so cloud timings are scaled by 1.28 before applying the 1 s limit.
+
+Proposed `SUPPORTED_DISTRIBUTED` (`n_colors` from 2 up to):
+
+| capacity \ `n_empty` | 1 | 2 |
+|---|---|---|
+| 3 | 12 | 12 |
+| 4 | 9 | 11 |
+| 5 | **8** (standard 7) | **8** (standard 9) |
+
+- **`n_empty = 1`: still rejection-bound, but less.** Spreading the free space makes far fewer fills unsolvable (12 × 4 × 1: 99.96 % unsolvable, about the same; 8 × 5 × 1: 99.35 % vs ≥ 99.98 % beyond the standard bound). The attempts-headroom condition (machine-independent) sets the bound: 8 × 5 × 1 needs 724 attempts at p99, 9 × 5 × 1 needs 2477.
+- **`n_empty = 2`: solver-bound, and costlier than standard.** On the same machine the distributed solver p99 is 1.2–3× the standard one (11 × 4 × 2: 536 vs 362 ms; 9 × 5 × 2: 829 vs 279 ms). Scaled: 12 × 4 × 2 → 1157 ms (out), 9 × 5 × 2 → 1061 ms (out), 11 × 4 × 2 → 686 ms, 8 × 5 × 2 → 414 ms. Unscaled, the cloud report marks 12 × 4 × 2 and 9 × 5 × 2 as passing; they are left out because the standard table was set on the slower machine.
+- API: `SUPPORTED_DISTRIBUTED`, `supported_rows(layout)`, `is_supported_in(&params, layout)`. `is_supported(&params)` is unchanged and means the standard layout. A CLI test checks that every proposed distributed cell passes the criterion in the committed report.
+
 ## D4 — Move limit `k · opt_moves` — proposed: k = 4
 
 Generous enough that a random-ish policy is not truncated before it has a chance. To be revisited after the RL baseline.
