@@ -89,3 +89,15 @@ proptest! {
         }
     }
 }
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(1024))]
+
+    #[test]
+    fn puzzle_code_round_trips(s in any_state()) {
+        let code = water_sort_core::puzzle_code::encode(&s);
+        prop_assert!(code.bytes().all(|b| b.is_ascii_digit() || b.is_ascii_uppercase()));
+        prop_assert_eq!(water_sort_core::puzzle_code::decode(&code), Ok(s));
+        prop_assert_eq!(water_sort_core::puzzle_code::decode(&code.to_lowercase()), Ok(s));
+    }
+}

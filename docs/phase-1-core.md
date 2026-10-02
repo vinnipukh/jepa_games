@@ -166,7 +166,7 @@ pub struct DifficultyMetrics {
 8. [x] `sampling.rs`, `seed.rs` + golden vectors (fixed seed → fixed shuffle output, fixed inputs → fixed seeds)
 9. [x] `generator.rs` types
 10. [x] `metrics.rs`
-11. [ ] Puzzle code encode/decode
+11. [x] Puzzle code encode/decode
 12. [ ] Criterion benches for `apply`, `canonical_full`, and solve on reference puzzles
 
 ## Tests

@@ -1,6 +1,11 @@
 //! The `Generator` trait (D7) and the validation step every generator shares.
 
+use rand_core::{Rng, SeedableRng};
 use serde::{Deserialize, Serialize};
+
+use crate::canon::canonical_hash;
+use crate::metrics::compute_metrics;
+use crate::puzzle_code;
 
 use crate::metrics::DifficultyMetrics;
 use crate::moves::Move;
@@ -39,6 +44,34 @@ pub trait Generator {
         seed: u64,
         cfg: &GenConfig,
     ) -> Result<GeneratedPuzzle, GenError>;
+
+    /// Builds the record for an accepted candidate: identity fields, metrics (rollouts use RNG
+    /// type `R`, see [`compute_metrics`]), canonical hash and puzzle code.
+    fn assemble<R: Rng + SeedableRng>(
+        &self,
+        state: State,
+        seed: u64,
+        attempts: u32,
+        accepted: Accepted,
+        cfg: &GenConfig,
+    ) -> GeneratedPuzzle
+    where
+        Self: Sized,
+    {
+        GeneratedPuzzle {
+            metrics: compute_metrics::<R>(&state, &accepted, cfg),
+            canonical_hash: canonical_hash(&state),
+            puzzle_code: puzzle_code::encode(&state),
+            state,
+            seed,
+            generator_id: Self::ID,
+            generator_version: Self::VERSION,
+            generator_variant: self.variant(),
+            opt_moves: accepted.opt_moves,
+            solution: accepted.solution,
+            attempts,
+        }
+    }
 }
 
 /// Generation settings. Part of the reproducibility key: changing `max_states` can change which

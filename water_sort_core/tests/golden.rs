@@ -254,3 +254,30 @@ mod hex_u64 {
         u64::from_str_radix(&text, 16).map_err(serde::de::Error::custom)
     }
 }
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+struct PuzzleCodeCase {
+    state: State,
+    code: String,
+}
+
+#[test]
+fn puzzle_codes() {
+    let mut states = sample_states(&CONFIGS);
+    states.push(State::solved(p(14, 8, 2)).unwrap());
+    states.push(State::solved(p(16, 2, 0)).unwrap());
+    let cases: Vec<PuzzleCodeCase> = states
+        .into_iter()
+        .map(|state| PuzzleCodeCase {
+            state,
+            code: water_sort_core::puzzle_code::encode(&state),
+        })
+        .collect();
+    for case in &cases {
+        assert_eq!(
+            water_sort_core::puzzle_code::decode(&case.code),
+            Ok(case.state)
+        );
+    }
+    check("puzzle_codes.json", &cases);
+}
