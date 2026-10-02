@@ -20,10 +20,14 @@ use water_sort_core::{
 
 use crate::args::{GeneratorKind, Range, parse_count};
 
-/// D3 criterion (proposed): solver p99 below this, per attempt.
+/// D3 criterion (proposed): solver p99 (per attempt and accepted) and whole-generation p99
+/// below this.
 pub const P99_LIMIT_MS: f64 = 1000.0;
 /// D3 criterion (proposed): timeout rate below this, per attempt.
 pub const TIMEOUT_RATE_LIMIT: f64 = 0.001;
+/// D3 criterion (proposed): attempts p99 at most `max_attempts / ATTEMPTS_HEADROOM`, so batch
+/// generation far into the tail (Phase 4: 1M puzzles) does not hit `TooManyAttempts`.
+pub const ATTEMPTS_HEADROOM: u32 = 10;
 /// Early stop: at least this many timeouts...
 const EARLY_STOP_MIN_TIMEOUTS: u32 = 10;
 /// ...and a timeout rate above this multiple of the limit.
@@ -192,6 +196,8 @@ pub struct Cell {
     pub samples: u32,
     /// Samples that hit `max_attempts`.
     pub failed: u32,
+    /// The `max_attempts` the cell was measured with (0 for unmeasured cells).
+    pub max_attempts: u32,
     pub attempts_total: u64,
     pub rejections: RejectionCounts,
     pub attempts_mean: f64,
@@ -221,6 +227,7 @@ impl Cell {
             status,
             samples: 0,
             failed: 0,
+            max_attempts: 0,
             attempts_total: 0,
             rejections: RejectionCounts::default(),
             attempts_mean: f64::NAN,
@@ -257,13 +264,17 @@ impl Cell {
     }
 
     /// The proposed D3 criterion: fully measured, no failed samples, solver p99 below 1 s both
-    /// per attempt and over accepted puzzles, and timeout rate below 0.1 % per attempt.
+    /// per attempt and over accepted puzzles, whole-generation p99 below 1 s, timeout rate below
+    /// 0.1 % per attempt, and attempts p99 within `max_attempts / ATTEMPTS_HEADROOM`.
     pub fn supported(&self) -> bool {
         self.status == Status::Complete
             && self.failed == 0
             && self.solve_ms_p99 < P99_LIMIT_MS
             && self.accepted_solve_ms_p99 < P99_LIMIT_MS
+            && self.gen_ms_p99 < P99_LIMIT_MS
             && self.timeout_rate() < TIMEOUT_RATE_LIMIT
+            && u64::from(self.attempts_p99) * u64::from(ATTEMPTS_HEADROOM)
+                <= u64::from(self.max_attempts)
     }
 }
 
@@ -287,8 +298,15 @@ fn mean(values: impl Iterator<Item = f64>) -> f64 {
     if n == 0 { f64::NAN } else { sum / n as f64 }
 }
 
-fn summarize(params: Params, status: Status, samples: &[Sample], wall: Duration) -> Cell {
+fn summarize(
+    params: Params,
+    status: Status,
+    max_attempts: u32,
+    samples: &[Sample],
+    wall: Duration,
+) -> Cell {
     let mut cell = Cell::empty(params, status);
+    cell.max_attempts = max_attempts;
     cell.samples = u32::try_from(samples.len()).expect("sample count fits in u32");
     cell.wall_secs = wall.as_secs_f64();
     if samples.is_empty() {
@@ -398,7 +416,7 @@ fn run_cell<G: Generator + Sync>(
             break;
         }
     }
-    summarize(params, status, &samples, start.elapsed())
+    summarize(params, status, cfg.max_attempts, &samples, start.elapsed())
 }
 
 /// Runs the whole grid, rewriting the reports after every cell.
@@ -572,9 +590,10 @@ fn markdown(args: &StatsArgs, threads: usize, cells: &[Cell]) -> String {
          outcomes); `acc. p99` only over accepted attempts; `states` is states expanded per \
          attempt. Timing columns depend on the machine and on parallel load; all other columns \
          are deterministic. `sym` is the fraction of generated puzzles with a nontrivial \
-         symmetry (D2). Supported (proposed D3): complete, no failed samples (a sample fails when \
-         it hits `max_attempts`), solve p99 and acc. p99 < {} ms, and timeout rate < {} %. A \
-         cell stops early once it has at least {EARLY_STOP_MIN_TIMEOUTS} timeouts and a timeout \
+         symmetry (D2); `gen` is the whole generation of one puzzle (all attempts plus metrics). \
+         Supported (proposed D3): complete, no failed samples (a sample fails when it hits \
+         `max_attempts`), solve p99, acc. p99 and gen p99 < {} ms, timeout rate < {} %, and \
+         attempts p99 ≤ `max_attempts` / {ATTEMPTS_HEADROOM}. A cell stops early once it has at least {EARLY_STOP_MIN_TIMEOUTS} timeouts and a timeout \
          rate above {} % (`stopped:timeouts`), or {EARLY_STOP_MIN_FAILED} failed samples \
          (`stopped:failures`); larger `n_colors` with the same capacity and `n_empty` are then \
          skipped. Default solver limit: {} states.\n",
@@ -586,15 +605,17 @@ fn markdown(args: &StatsArgs, threads: usize, cells: &[Cell]) -> String {
     md.push_str(
         "| colors | cap | empty | status | ok | samples | unsolv. % | timeout % | below min % \
          | attempts mean / p99 | opt mean / p50 / p99 | solve ms p50 / p99 | acc. p99 ms \
-         | states p50 / p99 | sym % |\n",
+         | gen ms p50 / p99 | states p50 / p99 | sym % |\n",
     );
-    md.push_str("|---:|---:|---:|---|:-:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n");
+    md.push_str(
+        "|---:|---:|---:|---|:-:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n",
+    );
     for c in cells {
         let r = &c.rejections;
         let _ = writeln!(
             md,
             "| {} | {} | {} | {} | {} | {}{} | {} | {} | {} | {} / {} | {} / {} / {} | {} / {} \
-             | {} | {} / {} | {} |",
+             | {} | {} / {} | {} / {} | {} |",
             c.params.n_colors,
             c.params.capacity,
             c.params.n_empty,
@@ -617,6 +638,8 @@ fn markdown(args: &StatsArgs, threads: usize, cells: &[Cell]) -> String {
             f(c.solve_ms_p50, 2),
             f(c.solve_ms_p99, 1),
             f(c.accepted_solve_ms_p99, 1),
+            f(c.gen_ms_p50, 1),
+            f(c.gen_ms_p99, 1),
             c.states_p50,
             c.states_p99,
             pct(c.symmetric_frac),

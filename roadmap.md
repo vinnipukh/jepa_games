@@ -268,7 +268,7 @@ Full log with reasoning: [docs/decisions.md](docs/decisions.md).
 
 1. **Definition of the Turan generator.** ✅ Decided (D1): time-seeded, strategy-based; default reverse scramble from a solved state.
 2. **Uniform over which space?** ✅ Decided (D2): labeled configurations. Phase 2.3 measures the fraction of symmetric puzzles; canonical correction only if that fraction matters.
-3. **Supported configuration range.** Proposed (D3), from the Phase 2.3 measurements in `reports/uniform_stats.md`: capacity 3 up to 12/12/10 colors, capacity 4 up to 11/11/8, capacity 5 up to 9/9/6 (for 1/2/3 empty tubes). Criterion: solver p99 < 1 s and timeout rate < 0.1 %.
+3. **Supported configuration range.** Proposed (D3), from the Phase 2.3 measurements in `reports/uniform_stats.md`: capacity 3 up to 12/12/10 colors, capacity 4 up to 9/11/8, capacity 5 up to 7/9/6 (for 1/2/3 empty tubes). Criterion: solver p99 < 1 s, whole-generation p99 < 1 s, timeout rate < 0.1 %, attempts p99 ≤ max_attempts / 10. Awaiting user confirmation.
 4. **Move limit.** Proposed (D4): `k = 4`, revisit after the RL baseline.
 5. **Star coefficients.** Proposed (D5): 0.10 / 0.25 / 0.50 as per-mille integers; to be updated as human player data comes in.
 6. **CI.** ✅ Decided (D6): GitHub Actions, Ubuntu + Windows.
