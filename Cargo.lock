@@ -767,6 +767,8 @@ dependencies = [
  "getrandom 0.4.3",
  "rand_chacha 0.10.0",
  "rand_core 0.10.1",
+ "serde",
+ "serde_json",
  "water_sort_core",
 ]
 
