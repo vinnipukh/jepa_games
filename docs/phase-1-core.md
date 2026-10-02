@@ -87,9 +87,8 @@ See D8 for why the roadmap's two-step procedure is not exact.
 - `canonical_tubes(s)`: tubes sorted lexicographically by `(cells, EMPTY-padded)`. Tube-order symmetry only.
 - `solver_key(s)`: sort → relabel by first appearance → sort again. Fast and sound, but not exact.
 - `canonical_full(s)`: exact. Find the color relabeling σ that minimizes `sort(σ(tubes))` in lexicographic order:
-  1. Compute a permutation-invariant signature per color: the sorted multiset of `(tube-content signature, depth)` positions it occupies. Colors with unique signatures are fixed by signature order.
-  2. Backtrack only over groups of colors with tied signatures, pruning any partial assignment whose partial encoding is already larger than the best found.
-  3. In typical puzzles almost all signatures are unique, so this costs little more than a sort.
+  1. **As implemented (D12):** search over tube orders with first-appearance labeling. Each position takes the smallest block any remaining tube can produce under the labels fixed so far. Only distinct tube contents that tie are branched on, and once every color is labeled the rest is a plain sort. This equals the minimum over all relabelings. The signature-order sketch originally planned here does not.
+  2. Automorphisms found from equal leaves prune symmetric branches (nauty-style), which keeps highly symmetric puzzles to milliseconds.
 - `canonical_hash(s) = xxh3_64(encode(canonical_full(s)))`. The encoding includes params, so hashes from different configurations never collide by construction.
 
 ## 1.4 Solver
@@ -150,7 +149,7 @@ pub struct DifficultyMetrics {
 }
 ```
 
-- Random rollouts use a ChaCha20 RNG seeded from `canonical_hash`, so the metric is deterministic for both generators.
+- Random rollouts use a ChaCha20 RNG seeded from `canonical_hash`, so the metric is deterministic for both generators. `compute_metrics::<R>` is generic over the RNG, so core keeps `rand_core` as its only RNG dependency. Rollouts run on the canonical state (D12).
 - "Dead end" in rollouts means no legal moves. Unsolvable states that still have moves cannot be detected cheaply, so they show up as `capped`.
 - Dead-end ratios: deduplicate the depth-1 and depth-2 states by `solver_key`, solve each one, and report the fraction unsolvable. It is expensive (dozens of solves), so it is **opt-in** via `GenConfig`.
 
@@ -167,7 +166,7 @@ pub struct DifficultyMetrics {
 9. [x] `generator.rs` types
 10. [x] `metrics.rs`
 11. [x] Puzzle code encode/decode
-12. [ ] Criterion benches for `apply`, `canonical_full`, and solve on reference puzzles
+12. [x] Criterion benches for `apply`, `canonical_full`, and solve on reference puzzles
 
 ## Tests
 
@@ -190,5 +189,5 @@ The roadmap gate (unit tests, the three named proptests), plus: A\*≡BFS on 10k
 
 ## Risks / open points
 
-- Exact canonicalization in the worst case (many tied colors) is exponential. It is bounded in practice. If it shows up in benchmarks, cap the backtracking and fall back to the brute-force orbit for small `n`.
+- Exact canonicalization in the worst case (many tied colors) is exponential. Automorphism pruning (D12) brought the worst measured case (several copies of a 2-color pattern) from 3.6 s to about 12 ms in release. The `canonical_full/14c_symmetric` bench tracks it.
 - A\* memory at large `n_colors` decides the supported range (D3).
