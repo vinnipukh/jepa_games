@@ -7,6 +7,9 @@ pub mod moves;
 pub mod params;
 pub mod state;
 
-pub use moves::{Move, MoveError, action_mask, apply, check, is_legal, legal_moves};
+pub use moves::{
+    InvalidReverseMove, Move, MoveError, ReverseMove, action_mask, apply, check, is_legal,
+    is_valid_reverse, legal_moves, reverse_moves, unapply,
+};
 pub use params::{MAX_CAP, MAX_TUBES, Params, ParamsError};
 pub use state::{EMPTY, State, StateError};

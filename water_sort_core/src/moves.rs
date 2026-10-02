@@ -152,6 +152,96 @@ pub(crate) fn solver_moves(s: &State, out: &mut Vec<Move>) {
     }
 }
 
+/// An un-pour: take the top `count` units of `from` and put them on `to`.
+///
+/// Valid reverse moves are exactly those whose matching forward pour (`to` → `from`) is legal in
+/// the resulting state and moves exactly `count` units back, so
+/// `apply(unapply(s, r), r.forward()) == (s, r.count)`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct ReverseMove {
+    pub from: u8,
+    pub to: u8,
+    pub count: u8,
+}
+
+/// The reverse move is not valid in the given state.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
+#[error("invalid reverse move {from}->{to} x{count}", from = .0.from, to = .0.to, count = .0.count)]
+pub struct InvalidReverseMove(pub ReverseMove);
+
+impl ReverseMove {
+    pub const fn new(from: u8, to: u8, count: u8) -> Self {
+        Self { from, to, count }
+    }
+
+    /// The forward pour that undoes this reverse move.
+    pub const fn forward(self) -> Move {
+        Move::new(self.to, self.from)
+    }
+}
+
+/// Whether `r` is a valid reverse move in `s`.
+///
+/// With `c` the top color of `from`, `run` its top run length and `free` the free space of `to`:
+///
+/// 1. `from != to`, `from` non-empty, and `1 <= count <= min(run, free)`;
+/// 2. `count < run`, or `from` holds nothing but that run (otherwise the pour back would land on
+///    a different color);
+/// 3. `to` is empty or its top color is not `c`, or `from` is full (otherwise the pour back
+///    would move more than `count` units).
+pub fn is_valid_reverse(s: &State, r: ReverseMove) -> bool {
+    let (from, to) = (usize::from(r.from), usize::from(r.to));
+    if from >= s.n_tubes() || to >= s.n_tubes() || from == to {
+        return false;
+    }
+    let Some(color) = s.top(from) else {
+        return false;
+    };
+    let run = s.top_run(from);
+    if r.count == 0 || r.count > run.min(s.free(to)) {
+        return false;
+    }
+    if r.count == run && s.height(from) != run {
+        return false;
+    }
+    s.top(to) != Some(color) || s.is_tube_full(from)
+}
+
+/// All valid reverse moves in `(from, to, count)` lexicographic order.
+pub fn reverse_moves(s: &State) -> Vec<ReverseMove> {
+    let n = to_u8(s.n_tubes());
+    let mut out = Vec::new();
+    for from in 0..n {
+        let max = s.top_run(from.into());
+        for to in 0..n {
+            for count in 1..=max {
+                let r = ReverseMove::new(from, to, count);
+                if is_valid_reverse(s, r) {
+                    out.push(r);
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Applies a reverse move.
+///
+/// # Errors
+///
+/// Returns [`InvalidReverseMove`] if `r` is not valid in `s`; the state is not changed.
+pub fn unapply(s: &State, r: ReverseMove) -> Result<State, InvalidReverseMove> {
+    if !is_valid_reverse(s, r) {
+        return Err(InvalidReverseMove(r));
+    }
+    let (from, to) = (usize::from(r.from), usize::from(r.to));
+    let color = s.tube(from)[usize::from(s.height(from)) - 1];
+    let mut prev = *s;
+    prev.pop_units(from, r.count);
+    prev.push_units(to, color, r.count);
+    Ok(prev)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -271,5 +361,74 @@ mod tests {
         assert!(!out.contains(&Move::new(3, 4)));
         assert!(out.contains(&Move::new(0, 3)));
         assert!(out.iter().all(|&m| is_legal(&s, m)));
+    }
+
+    /// Moves `count` top units from `from` to `to` without any rule checks, then tests whether
+    /// the forward pour back restores `s` exactly. `None` if the transfer is physically
+    /// impossible.
+    fn round_trips(s: &State, r: ReverseMove) -> Option<bool> {
+        let (from, to, k) = (usize::from(r.from), usize::from(r.to), usize::from(r.count));
+        let mut tubes = s.tubes();
+        if from == to || k == 0 || k > usize::from(s.top_run(from)) {
+            return None;
+        }
+        let at = tubes[from].len() - k;
+        let moved = tubes[from].split_off(at);
+        tubes[to].extend(moved);
+        let prev = State::from_tubes(s.params(), &tubes).ok()?;
+        Some(apply(&prev, r.forward()) == Ok((*s, r.count)))
+    }
+
+    #[test]
+    fn reverse_conditions() {
+        let s = sample();
+        // Condition 1.
+        assert!(!is_valid_reverse(&s, ReverseMove::new(0, 0, 1)));
+        assert!(!is_valid_reverse(&s, ReverseMove::new(0, 4, 0)));
+        assert!(!is_valid_reverse(&s, ReverseMove::new(0, 4, 3)));
+        assert!(
+            !is_valid_reverse(&s, ReverseMove::new(0, 2, 1)),
+            "target full"
+        );
+        // Condition 2: taking the whole run of 1s would expose the 0 below.
+        assert!(!is_valid_reverse(&s, ReverseMove::new(0, 4, 2)));
+        assert!(is_valid_reverse(&s, ReverseMove::new(0, 4, 1)));
+        // ... but a tube holding only the run may be emptied.
+        assert!(is_valid_reverse(&s, ReverseMove::new(4, 3, 1)));
+        // Condition 3: onto the same color, the pour back would take more units.
+        assert!(!is_valid_reverse(&s, ReverseMove::new(0, 1, 1)));
+        // ... unless the source is full, which caps the pour back.
+        assert!(is_valid_reverse(&s, ReverseMove::new(2, 4, 1)));
+        assert_eq!(
+            unapply(&s, ReverseMove::new(0, 1, 1)),
+            Err(InvalidReverseMove(ReverseMove::new(0, 1, 1)))
+        );
+    }
+
+    #[test]
+    fn reverse_moves_are_exactly_the_round_trips() {
+        let s = sample();
+        let listed = reverse_moves(&s);
+        let mut sorted = listed.clone();
+        sorted.sort_unstable();
+        assert_eq!(listed, sorted);
+        for from in 0..5 {
+            for to in 0..5 {
+                for count in 0..=4 {
+                    let r = ReverseMove::new(from, to, count);
+                    assert_eq!(
+                        listed.contains(&r),
+                        round_trips(&s, r).unwrap_or(false),
+                        "{r:?}"
+                    );
+                    if listed.contains(&r) {
+                        assert!(unapply(&s, r).is_ok());
+                    }
+                }
+            }
+        }
+        let prev = unapply(&s, ReverseMove::new(2, 4, 1)).unwrap();
+        assert_eq!(prev.tube(2), &[0, 0, 2]);
+        assert_eq!(prev.tube(4), &[2, 2]);
     }
 }
