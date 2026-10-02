@@ -9,7 +9,7 @@ You are implementing Phase 7 (JEPA world model, planning, baselines, evaluation;
 PyTorch) of the jepa_games project.
 
 Repo: github.com/vinnipukh/jepa_games (private). Start from an up-to-date `main` and create
-branch `phase-7-jepa`.
+branch `phase-7-jepa`. Read CLAUDE.md at the repo root first (commands, rules, workflow).
 
 STATE OF THE PROJECT
 - Rust side complete: water_sort_core, uniform and turan generators, water_sort_cli (stats,
@@ -50,7 +50,8 @@ KEY REQUIREMENTS (details in PLAN.md)
 - Evaluation: solve rate, mean stars (via jepa_water_sort.stars), mean moves / opt_moves, broken
   down by opt_moves bucket and generator; the cross-evaluation matrix {train uniform, train
   turan} x {test uniform, test turan} with leakage removed and results matched by opt_moves
-  bucket; optional Turan steps sweep as a shift axis; fixed test puzzles (puzzle codes) and
+  bucket; optional Turan steps sweep as a shift axis; the layout axis (D14): the matrix per
+  layout plus train-standard -> test-distributed and the reverse; fixed test puzzles (puzzle codes) and
   policy seeds; 3 training seeds per model, mean +- std. One command produces the full matrix.
 - Reproducibility: config dataclasses (or hydra) saved with every run, seeds logged, small CPU
   smoke test that trains a few steps and runs one evaluation in CI (keep it under a few minutes).

@@ -20,7 +20,7 @@ Each phase has its own folder under `phases/` with two files:
 
 Run phases in order, one PR per phase. A start prompt assumes all phases before it are merged into `main`. If an earlier phase recorded new decisions, read those in `decisions.md` too.
 
-Decisions, including the places where these plans change the roadmap, are recorded in [`decisions.md`](decisions.md).
+Decisions, including the places where these plans change the roadmap, are recorded in [`decisions.md`](decisions.md). How to continue development in cloud sessions: [`HANDOFF.md`](HANDOFF.md). Agent conventions: [`../CLAUDE.md`](../CLAUDE.md).
 
 ## Conventions
 

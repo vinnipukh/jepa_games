@@ -34,3 +34,11 @@ jobs:
         run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --release --workspace --locked -- --ignored
+
+  setup-script:
+    name: cloud setup script
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: Swatinem/rust-cache@v2
+      - run: scripts/setup-cloud.sh

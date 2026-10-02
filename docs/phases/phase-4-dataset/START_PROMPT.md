@@ -10,7 +10,7 @@ produces a large deduplicated puzzle dataset, its train/val/test split and a dup
 leakage report.
 
 Repo: github.com/vinnipukh/jepa_games (private). Start from an up-to-date `main` and create
-branch `phase-4-dataset`.
+branch `phase-4-dataset`. Read CLAUDE.md at the repo root first (commands, rules, workflow).
 
 STATE OF THE PROJECT
 - Toolchain pinned to 1.99.0 (rust-toolchain.toml; install rustup if `cargo` is missing). CI:
@@ -34,7 +34,9 @@ record type (put it in the CLI crate, or in a small new `water_sort_dataset` cra
 will need it in Phase 5; decide and record as a D-entry). No Python, no web.
 
 KEY REQUIREMENTS (details in PLAN.md)
-- Record schema exactly as in PLAN.md (generator_variant, seed for both generators, gen_config
+- Layouts (D14): both generators take `--layout standard|distributed`; record it in
+  generator_variant and the `layout` column; check params with the layout-aware is_supported.
+- Record schema exactly as in PLAN.md (generator_variant, layout, seed for both generators, gen_config
   JSON, puzzle_code, state as fixed-size binary, solution as action indices, canonical_hash,
   flattened metrics, split, created_at, tool_version with git commit). JSONL (`--format jsonl`)
   and Parquet (default; arrow + parquet crates, zstd, 64k row groups).
