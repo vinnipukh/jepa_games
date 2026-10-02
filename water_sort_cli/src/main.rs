@@ -1,6 +1,7 @@
 //! `water_sort_cli`: batch generation, validation and statistics commands.
 
 mod args;
+mod compare;
 mod stats;
 
 use std::process::ExitCode;
@@ -18,12 +19,17 @@ struct Cli {
 enum Command {
     /// Generation statistics per `(n_colors, capacity, n_empty)` cell, as CSV + Markdown.
     Stats(stats::StatsArgs),
+    /// Two generators side by side: measurements, histograms, two-sample tests, overlap.
+    Compare(compare::CompareArgs),
 }
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
     let result = match &cli.command {
         Command::Stats(args) => stats::run(args).map(|_| ()),
+        Command::Compare(args) => compare::run(args).map(|path| {
+            eprintln!("wrote {}", path.display());
+        }),
     };
     match result {
         Ok(()) => ExitCode::SUCCESS,
@@ -54,7 +60,9 @@ mod tests {
             "--base-seed",
             "7",
         ]);
-        let Command::Stats(a) = cli.command;
+        let Command::Stats(a) = cli.command else {
+            panic!("expected stats")
+        };
         assert_eq!(a.colors, args::Range(2..=12));
         assert_eq!((a.max_states, a.base_seed), (5_000_000, 7));
         assert_eq!(a.generator.generator, args::GeneratorKind::Uniform);
@@ -69,7 +77,9 @@ mod tests {
             "--layout",
             "distributed",
         ]);
-        let Command::Stats(a) = cli.command;
+        let Command::Stats(a) = cli.command else {
+            panic!("expected stats")
+        };
         assert_eq!(a.spec().variant(), "scramble(steps=80,layout=distributed)");
         assert_eq!(
             a.out_path(),

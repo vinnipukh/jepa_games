@@ -987,6 +987,7 @@ dependencies = [
  "rayon",
  "serde",
  "serde_json",
+ "statrs",
  "turan_water_sort",
  "uniform_water_sort",
  "water_sort_core",

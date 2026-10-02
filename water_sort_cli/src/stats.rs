@@ -13,8 +13,8 @@ use std::time::{Duration, Instant};
 use clap::Args;
 use rayon::prelude::*;
 use water_sort_core::{
-    Evaluation, GenConfig, Generator, Layout, MetricsConfig, Observer, Params, RejectionCounts,
-    SolverLimits, is_symmetric, splitmix64,
+    DifficultyMetrics, Evaluation, GenConfig, Generator, Layout, MetricsConfig, Observer, Params,
+    RejectionCounts, SolverLimits, is_symmetric, splitmix64,
 };
 
 use crate::args::{GenArgs, GenSpec, GeneratorKind, Range, StrategyArg, parse_count};
@@ -114,6 +114,15 @@ impl StatsArgs {
         }
     }
 
+    pub const fn sampling(&self) -> Sampling {
+        Sampling {
+            samples: self.samples,
+            batch: self.batch,
+            base_seed: self.base_seed,
+            cell_budget_secs: self.cell_budget_secs,
+        }
+    }
+
     pub fn config(&self) -> GenConfig {
         GenConfig {
             min_opt: self.min_opt,
@@ -127,21 +136,30 @@ impl StatsArgs {
     }
 }
 
+/// What a sample keeps of a generated puzzle.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Generated {
+    pub opt_moves: u32,
+    pub symmetric: bool,
+    pub metrics: DifficultyMetrics,
+    pub canonical_hash: u64,
+}
+
 /// One `generate` call.
 #[derive(Debug, Default)]
-struct Sample {
-    /// `(opt_moves, symmetric)` if a puzzle was generated.
-    puzzle: Option<(u32, bool)>,
-    attempts: u32,
-    rejections: RejectionCounts,
+pub struct Sample {
+    /// The puzzle, if one was generated within `max_attempts`.
+    pub puzzle: Option<Generated>,
+    pub attempts: u32,
+    pub rejections: RejectionCounts,
     /// Solver wall time of each attempt.
-    solve_secs: Vec<f32>,
+    pub solve_secs: Vec<f32>,
     /// Solver wall time of the accepted attempt.
-    accepted_solve_secs: Option<f32>,
+    pub accepted_solve_secs: Option<f32>,
     /// States expanded by each attempt.
-    states: Vec<u64>,
+    pub states: Vec<u64>,
     /// Whole `generate` call, including metrics.
-    gen_secs: f32,
+    pub gen_secs: f32,
 }
 
 /// Times the solver and counts rejections.
@@ -178,7 +196,12 @@ fn sample<G: Generator>(g: &G, params: Params, seed: u64, cfg: &GenConfig) -> Sa
     let result = g.generate_observed(&params, seed, cfg, &mut probe);
     let mut sample = probe.sample;
     sample.gen_secs = start.elapsed().as_secs_f32();
-    sample.puzzle = result.ok().map(|p| (p.opt_moves, is_symmetric(&p.state)));
+    sample.puzzle = result.ok().map(|p| Generated {
+        opt_moves: p.opt_moves,
+        symmetric: is_symmetric(&p.state),
+        metrics: p.metrics,
+        canonical_hash: p.canonical_hash,
+    });
     sample
 }
 
@@ -328,7 +351,7 @@ fn mean(values: impl Iterator<Item = f64>) -> f64 {
     if n == 0 { f64::NAN } else { sum / n as f64 }
 }
 
-fn summarize(
+pub fn summarize(
     params: Params,
     status: Status,
     max_attempts: u32,
@@ -345,7 +368,7 @@ fn summarize(
     let mut attempts: Vec<u32> = samples.iter().map(|s| s.attempts).collect();
     let mut opts: Vec<u32> = samples
         .iter()
-        .filter_map(|s| s.puzzle.map(|p| p.0))
+        .filter_map(|s| s.puzzle.map(|p| p.opt_moves))
         .collect();
     let mut expanded: Vec<u64> = samples
         .iter()
@@ -392,7 +415,7 @@ fn summarize(
     cell.symmetric_frac = mean(
         samples
             .iter()
-            .filter_map(|s| s.puzzle.map(|p| f64::from(u8::from(p.1)))),
+            .filter_map(|s| s.puzzle.map(|p| f64::from(u8::from(p.symmetric)))),
     );
     cell.states_p50 = percentile(&expanded, 0.5).unwrap_or(0);
     cell.states_p99 = percentile(&expanded, 0.99).unwrap_or(0);
@@ -413,6 +436,37 @@ fn run_cell<G: Generator + Sync>(
     pool: &rayon::ThreadPool,
 ) -> Cell {
     let cfg = args.config();
+    let run = collect_samples(g, params, &cfg, &args.sampling(), pool);
+    summarize(params, run.status, cfg.max_attempts, &run.samples, run.wall)
+}
+
+/// How a cell is sampled.
+#[derive(Clone, Copy, Debug)]
+pub struct Sampling {
+    pub samples: u32,
+    pub batch: u32,
+    pub base_seed: u64,
+    pub cell_budget_secs: u64,
+}
+
+/// The raw samples of one cell.
+pub struct CellRun {
+    pub samples: Vec<Sample>,
+    pub status: Status,
+    pub wall: Duration,
+}
+
+/// Generates the samples of one cell in index order (seed `splitmix64(base_seed ^ i)`), with
+/// the early stops of the stats grid.
+pub fn collect_samples<G: Generator + Sync>(
+    g: &G,
+    params: Params,
+    cfg: &GenConfig,
+    sampling: &Sampling,
+    pool: &rayon::ThreadPool,
+) -> CellRun {
+    let cfg = *cfg;
+    let args = sampling;
     let start = Instant::now();
     let budget = Duration::from_secs(args.cell_budget_secs);
     let mut samples: Vec<Sample> = Vec::with_capacity(args.samples as usize);
@@ -447,7 +501,11 @@ fn run_cell<G: Generator + Sync>(
             break;
         }
     }
-    summarize(params, status, cfg.max_attempts, &samples, start.elapsed())
+    CellRun {
+        samples,
+        status,
+        wall: start.elapsed(),
+    }
 }
 
 /// Runs the whole grid, rewriting the reports after every cell.
