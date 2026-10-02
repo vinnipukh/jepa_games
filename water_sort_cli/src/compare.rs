@@ -580,6 +580,11 @@ fn spec_arg(spec: GenSpec) -> String {
                 g.layout
             ),
             TuranStrategy::Constrained => format!("turan:constrained:{}", g.layout),
+            TuranStrategy::PourWalk { steps } => format!("turan:walk:{steps}:{}", g.layout),
+            TuranStrategy::ReverseSearch {
+                max_depth,
+                max_states,
+            } => format!("turan:search:{max_states}:depth={max_depth}:{}", g.layout),
         },
     }
 }

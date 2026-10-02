@@ -92,7 +92,15 @@ fn generators() -> Vec<(&'static str, Turan)> {
             "constrained",
             Turan::new(TuranStrategy::Constrained, layout),
         ));
+        out.push((
+            "reverse_search",
+            Turan::new(TuranStrategy::DEFAULT_REVERSE_SEARCH, layout),
+        ));
     }
+    out.push((
+        "pour_walk",
+        Turan::new(TuranStrategy::DEFAULT_POUR_WALK, Layout::Distributed),
+    ));
     out
 }
 

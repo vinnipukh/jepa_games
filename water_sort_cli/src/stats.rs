@@ -17,6 +17,8 @@ use water_sort_core::{
     RejectionCounts, SolverLimits, is_symmetric, splitmix64,
 };
 
+use turan_water_sort::TuranStrategy;
+
 use crate::args::{GenArgs, GenSpec, GeneratorKind, Range, StrategyArg, parse_count};
 
 /// D3 criterion (proposed): solver p99 (per attempt and accepted) and whole-generation p99
@@ -108,7 +110,17 @@ impl StatsArgs {
                 StrategyArg::Scramble => format!(
                     "--generator turan --strategy scramble --steps {} --max-extra-steps {} \
                      --layout {layout}",
-                    g.steps, g.max_extra_steps
+                    g.steps.unwrap_or(TuranStrategy::DEFAULT_STEPS),
+                    g.max_extra_steps
+                ),
+                StrategyArg::PourWalk => format!(
+                    "--generator turan --strategy pour-walk --steps {} --layout {layout}",
+                    g.steps.unwrap_or(TuranStrategy::DEFAULT_WALK_STEPS)
+                ),
+                StrategyArg::ReverseSearch => format!(
+                    "--generator turan --strategy reverse-search --search-depth {} \
+                     --search-states {} --layout {layout}",
+                    g.search_depth, g.search_states
                 ),
                 StrategyArg::Constrained => {
                     format!("--generator turan --strategy constrained --layout {layout}")

@@ -40,7 +40,10 @@ fn check(generator: Turan, count: u64) {
         assert_eq!(g.canonical_hash, canonical_hash(&g.state), "{ctx}");
         assert_eq!(puzzle_code::decode(&g.puzzle_code), Ok(g.state), "{ctx}");
         match generator.strategy {
-            TuranStrategy::Scramble { .. } => assert_eq!(counts.unsolvable, 0, "{ctx}"),
+            TuranStrategy::Scramble { .. } | TuranStrategy::ReverseSearch { .. } => {
+                assert_eq!(counts.unsolvable, 0, "{ctx}");
+            }
+            TuranStrategy::PourWalk { .. } => {}
             TuranStrategy::Constrained => assert!(no_adjacent_same_color(&g.state), "{ctx}"),
         }
     }
@@ -50,7 +53,15 @@ fn check_all(count: u64) {
     for layout in Layout::ALL {
         check(Turan::new(TuranStrategy::default(), layout), count);
         check(Turan::new(TuranStrategy::Constrained, layout), count);
+        check(
+            Turan::new(TuranStrategy::DEFAULT_REVERSE_SEARCH, layout),
+            count,
+        );
     }
+    check(
+        Turan::new(TuranStrategy::DEFAULT_POUR_WALK, Layout::Distributed),
+        count,
+    );
 }
 
 #[test]

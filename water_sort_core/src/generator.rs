@@ -7,6 +7,7 @@ use crate::canon::canonical_hash;
 use crate::metrics::compute_metrics;
 use crate::puzzle_code;
 
+use crate::layout::Layout;
 use crate::metrics::DifficultyMetrics;
 use crate::moves::Move;
 use crate::params::{Params, ParamsError};
@@ -202,6 +203,12 @@ pub enum GenError {
     TooManyAttempts { attempts: u32 },
     #[error("seed source failed: {0}")]
     Entropy(String),
+    /// The generator's strategy is not defined for this layout.
+    #[error("strategy {strategy} does not support the {layout} layout")]
+    UnsupportedLayout {
+        strategy: &'static str,
+        layout: Layout,
+    },
 }
 
 /// Why a candidate state was rejected.

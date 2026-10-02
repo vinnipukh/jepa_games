@@ -89,5 +89,39 @@ mod tests {
             a.out_path(),
             std::path::Path::new("reports").join("turan_scramble_distributed_stats")
         );
+        let cli = Cli::parse_from([
+            "water_sort_cli",
+            "stats",
+            "--generator",
+            "turan",
+            "--strategy",
+            "reverse-search",
+            "--search-states",
+            "1e3",
+        ]);
+        let Command::Stats(a) = cli.command else {
+            panic!("expected stats")
+        };
+        assert_eq!(
+            a.spec().variant(),
+            "reverse_search(max_depth=300,max_states=1000,layout=standard)"
+        );
+        let cli = Cli::parse_from([
+            "water_sort_cli",
+            "stats",
+            "--generator",
+            "turan",
+            "--strategy",
+            "pour-walk",
+            "--layout",
+            "distributed",
+        ]);
+        let Command::Stats(a) = cli.command else {
+            panic!("expected stats")
+        };
+        assert_eq!(
+            a.spec().variant(),
+            "pour_walk(steps=160,layout=distributed)"
+        );
     }
 }
