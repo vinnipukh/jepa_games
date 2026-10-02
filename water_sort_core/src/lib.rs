@@ -28,8 +28,8 @@ pub use generator::{
 pub use layout::{HeightCounts, Layout, UnknownLayout, sample_heights};
 pub use metrics::{DifficultyMetrics, compute_metrics};
 pub use moves::{
-    InvalidReverseMove, Move, MoveError, ReverseMove, action_mask, apply, check, is_legal,
-    is_valid_reverse, legal_moves, reverse_moves, unapply,
+    InvalidReverseMove, Move, MoveError, ReverseMove, action_mask, apply, check, has_reverse_move,
+    is_legal, is_valid_reverse, legal_moves, reverse_moves, unapply,
 };
 pub use params::{MAX_CAP, MAX_TUBES, Params, ParamsError};
 pub use puzzle_code::PuzzleCodeError;

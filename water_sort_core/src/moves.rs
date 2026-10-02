@@ -224,6 +224,20 @@ pub fn reverse_moves(s: &State) -> Vec<ReverseMove> {
     out
 }
 
+/// Whether `s` has a predecessor: some pour leads to `s`, i.e. [`reverse_moves`] is non-empty.
+///
+/// A state where every non-empty tube shows a single top unit (or a run that cannot be split off)
+/// on a color no other tube can take back has none: a pour always moves the whole top run that
+/// fits, so no pour ends there. Stops at the first valid reverse move.
+pub fn has_reverse_move(s: &State) -> bool {
+    let n = to_u8(s.n_tubes());
+    (0..n).any(|from| {
+        let max = s.top_run(from.into());
+        (0..n)
+            .any(|to| (1..=max).any(|count| is_valid_reverse(s, ReverseMove::new(from, to, count))))
+    })
+}
+
 /// Applies a reverse move.
 ///
 /// # Errors
@@ -426,8 +440,34 @@ mod tests {
                 }
             }
         }
+        assert!(has_reverse_move(&s));
         let prev = unapply(&s, ReverseMove::new(2, 4, 1)).unwrap();
         assert_eq!(prev.tube(2), &[0, 0, 2]);
         assert_eq!(prev.tube(4), &[2, 2]);
+    }
+
+    #[test]
+    fn has_reverse_move_matches_reverse_moves() {
+        // No predecessor: every tube is full with a single top unit on a different color.
+        let dead = st(&[&[0, 0, 0, 1], &[1, 1, 1, 2], &[2, 2, 2, 0], &[], &[]]);
+        assert_eq!(reverse_moves(&dead), Vec::new());
+        assert!(!has_reverse_move(&dead));
+        // Every state up to three reverse moves from the solved one.
+        let solved = State::solved(P).unwrap();
+        let mut frontier = vec![solved];
+        for _ in 0..3 {
+            let mut next = Vec::new();
+            for s in &frontier {
+                assert_eq!(has_reverse_move(s), !reverse_moves(s).is_empty());
+                for r in reverse_moves(s) {
+                    next.push(unapply(s, r).unwrap());
+                }
+            }
+            frontier = next;
+        }
+        assert_eq!(
+            has_reverse_move(&sample()),
+            !reverse_moves(&sample()).is_empty()
+        );
     }
 }
