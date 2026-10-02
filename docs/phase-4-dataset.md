@@ -12,9 +12,8 @@ One command produces a large deduplicated puzzle dataset, its train/val/test spl
 | `generator_id`, `generator_version` | str, u32 | |
 | `params` | struct{n_colors, capacity, n_empty} | |
 | `gen_config` | JSON string | min_opt, max_attempts, solver limits (Phase 2 note) |
-| `provenance_kind` | enum `seed` / `tape` | |
-| `seed` | u64, nullable | uniform |
-| `tape` | binary, nullable | turan |
+| `generator_variant` | str | e.g. `fisher_yates`, `scramble(steps=40)` |
+| `seed` | u64 | both generators |
 | `puzzle_code` | str | |
 | `state` | fixed_size_binary(n_tubes × capacity) | row-major, bottom → top, EMPTY = 255 |
 | `opt_moves` | u32 | |
@@ -36,9 +35,9 @@ water_sort_cli generate --generator uniform --count 1000000 \
     --master-seed 0x... --out data/uniform_c6k4e2/ [--format parquet|jsonl]
 ```
 
-- **Seed derivation (uniform):** `seed_i = splitmix64(master_seed ⊕ i)`. Any record can be regenerated on its own, and the master seed is recorded in a `manifest.json`.
+- **Seed derivation (both generators):** `seed_i = splitmix64(master_seed ⊕ i)`. Any record can be regenerated on its own, and the master seed is recorded in a `manifest.json`. When `--master-seed` is omitted, it comes from the generator's `fresh_seed`: OS entropy for uniform, the time seed for Turan.
 - **Parallelism:** rayon over chunks of indices. Each chunk is generated independently and then written **in index order** through a bounded channel to a single writer. The output is byte-identical regardless of thread count, and memory stays bounded at 1M records.
-- **Turan:** the same pipeline. There is no master seed, and tapes are stored instead.
+- **Turan:** the same pipeline, plus `--strategy scramble --steps N` (recorded in `generator_variant` and the manifest).
 - **Manifest:** params, gen_config, generator id/version, counts, master seed, tool version, start/end time, split ranges, file list with sha256.
 
 ## Dedup
@@ -63,7 +62,7 @@ Reports the number and fraction of shared canonical hashes. Within one generator
 
 ## Other subcommands
 
-- `validate <dir>`: re-check every record (replay the solution to solved in `opt_moves` moves, recompute `canonical_hash`, decode the puzzle code and compare it with `state`, replay provenance). Run in CI on a small fixture dataset.
+- `validate <dir>`: re-check every record (replay the solution to solved in `opt_moves` moves, recompute `canonical_hash`, decode the puzzle code and compare it with `state`, re-generate from `seed` and compare; that last check is sampled, by default 1 %, because it re-runs the solver). Run in CI on a small fixture dataset.
 - `dedup-report <dir>`: standalone report.
 
 ## Tasks

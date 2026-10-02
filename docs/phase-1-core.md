@@ -2,7 +2,7 @@
 
 ## Goal
 
-The single implementation of the game: state, rules, canonical hashing, an optimal solver, the star metric, shared sampling primitives, the `Generator` trait, and difficulty metrics. Everything later depends on this crate being correct, so it carries the heaviest test load.
+The single implementation of the game: state, rules (forward and reverse moves), canonical hashing, an optimal solver, the star metric, shared sampling and seed primitives, the `Generator` trait, and difficulty metrics. Everything later depends on this crate being correct, so it carries the heaviest test load.
 
 ## Module layout
 
@@ -11,15 +11,16 @@ water_sort_core/src/
 ├── lib.rs          # re-exports, #![forbid(unsafe_code)]
 ├── params.rs       # Params, validation
 ├── state.rs        # State, EMPTY, is_solved, puzzle code encode/decode
-├── moves.rs        # Move, is_legal, apply, legal_moves, action_mask
+├── moves.rs        # Move, is_legal, apply, legal_moves, action_mask, ReverseMove, reverse_moves, unapply
 ├── canon.rs        # canonical_tubes, solver_key, canonical_full, canonical_hash
 ├── solver/
 │   ├── mod.rs      # SolveResult, SolverLimits, solve()
 │   ├── bfs.rs
 │   └── astar.rs
-├── stars.rs        # StarConfig, stars()
-├── sampling.rs     # bounded_u32, fisher_yates, RecordingRng, TapeRng
-├── generator.rs    # Generator trait, GeneratedPuzzle, Provenance, GenConfig, GenError
+├── stars.rs        # StarConfig, stars(), Session (move counting with undo/restart)
+├── sampling.rs     # bounded_u32, fisher_yates
+├── seed.rs         # splitmix64, time_seed(now_nanos, counter)
+├── generator.rs    # Generator trait, GeneratedPuzzle, GenConfig, GenError
 └── metrics.rs      # DifficultyMetrics, compute_metrics()
 ```
 
@@ -30,9 +31,10 @@ pub const MAX_TUBES: usize = 16;
 pub const MAX_CAP: usize = 8;
 pub const EMPTY: u8 = u8::MAX;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Params { pub n_colors: u8, pub capacity: u8, pub n_empty: u8 } // defaults: capacity 4, n_empty 2
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct State {
     params: Params,
     cells: [[u8; MAX_CAP]; MAX_TUBES], // bottom → top, EMPTY above the fill height
@@ -40,7 +42,7 @@ pub struct State {
 }
 ```
 
-- Fixed arrays, no heap. `State` is `Copy`-sized (about 150 bytes), cheap to clone in the solver, and has the same layout on every target.
+- Fixed arrays, no heap. `State` is `Copy` (about 150 bytes), cheap to duplicate in the solver, and has the same layout on every target.
 - One concrete type for all parameter sets, with runtime checks against `MAX_*`. This avoids const generics leaking into the PyO3/WASM bindings.
 - `Params::validate`: `n_colors ≥ 1`, `capacity ≥ 2`, `n_colors + n_empty ≤ MAX_TUBES`, `capacity ≤ MAX_CAP`.
 - `is_solved`: every tube is either empty or full and single-colored.
@@ -57,8 +59,26 @@ pub struct Move { pub from: u8, pub to: u8 }
 - `legal_moves(s) -> impl Iterator<Item = Move>` in a fixed `(from, to)` order. Determinism matters for random rollouts.
 - `action_mask(s) -> Vec<bool>` of length `n_tubes²`, with index `from * n_tubes + to`. Returned as a `Vec` because `n_tubes` is a runtime value; the binding layers convert it.
 - Solver-only pruning (never in the game):
-  - Pouring a full single-color tube anywhere is useless. Pouring an entire single-color tube into an empty tube is the roadmap's redundant move.
+  - Pouring an entire single-color tube into an empty tube (the roadmap's redundant move) only swaps which tube is empty. That is a tube permutation, so the result is the same canonical state.
   - When there are several empty tubes, only pour into the lowest-indexed one. They are interchangeable.
+
+## 1.2b Reverse moves (used by the Turan `Scramble` strategy)
+
+A reverse move undoes a pour. It is defined so that the forward pour from the resulting state is legal and moves exactly the same units back:
+
+```rust
+pub struct ReverseMove { pub from: u8, pub to: u8, pub count: u8 } // take `count` top units of `from`, put them on `to`
+pub fn reverse_moves(s: &State) -> Vec<ReverseMove>;              // fixed (from, to, count) order
+pub fn unapply(s: &State, r: ReverseMove) -> State;
+```
+
+Let `c` be the top color of `from`, `r` its top run length, and `f` the free space of `to`. `ReverseMove { from, to, count: k }` is valid iff:
+
+1. `from != to`, `from` non-empty, and `1 ≤ k ≤ min(r, f)`;
+2. `k < r`, **or** `from` holds nothing but that run (taking the whole run must leave `from` empty, otherwise the forward pour onto the color below would be illegal);
+3. `to` is empty or its top color is not `c`, **or** `from` is full. Otherwise the forward pour would move more than `k` units back.
+
+Here "forward pour" means pouring from `to` back into `from` in the resulting state, so the conditions are stated on the state *before* the reverse move. Invariant (proptest): for every `r ∈ reverse_moves(s)`, `apply(unapply(s, r), Move { from: r.to, to: r.from }) == (s, r.count)`. Unlike forward pours, reverse moves can split a run, which is what lets a scramble mix colors.
 
 ## 1.3 Canonical hash
 
@@ -84,7 +104,7 @@ pub enum SolveResult {
 ```
 
 - **BFS**: reference implementation for small puzzles and tests. Closed set keyed by `solver_key`.
-- **A\***: heuristic `h = segments − n_colors` (D9; admissible and consistent, so the first time the goal is popped it is optimal). Open list is a binary heap ordered by `(f, −g, insertion counter)`. The counter makes tie-breaking deterministic. The closed set is a `HashMap<Key, (g, parent_key, move)>` for path reconstruction, using a fixed-seed hasher (FxHash) so iteration order is deterministic.
+- **A\***: heuristic `h = segments − n_colors` (D9; admissible and consistent, so the first time the goal is popped it is optimal). Open list is a binary heap ordered by `(f, −g, insertion counter)`. The counter makes tie-breaking deterministic. The closed set is a `HashMap<Key, (g, parent_key, move)>` for path reconstruction, using a fixed-seed hasher (`rustc-hash` FxHash, added as a workspace dependency) so iteration order is deterministic.
 - An exhausted search proves `Unsolvable`, because the state space is finite.
 - Solutions are found on canonical keys but must be **replayed on the original labeled state**. The parent chain stores real moves taken from real (non-canonicalized) states.
 - IDA\* only if A\* memory becomes the bottleneck in Phase 2.3.
@@ -104,14 +124,15 @@ pub fn stars(player_moves: u32, opt: u32, cfg: &StarConfig) -> Result<u8, StarEr
 
 ## 1.6 Generator trait
 
-As amended in D7: `generate(params, cfg)`, `replay(params, provenance)`, a `Provenance` enum, and `GeneratedPuzzle` with `provenance` and `puzzle_code` fields in place of `seed`. `GenConfig` holds `min_opt`, `max_attempts`, and `SolverLimits`.
+As in D7: the roadmap's trait with `seed: u64`, plus `variant()`, `fresh_seed(now_nanos)`, a `GenConfig` argument and a `Result` return. `GeneratedPuzzle` is the roadmap struct plus `generator_variant: String` and `puzzle_code: String`. `GenConfig` holds `min_opt`, `max_attempts`, `SolverLimits`, and the opt-in metric flags. `GenError` covers `TooManyAttempts`, `InvalidParams`, and `Entropy` (OS seed failure).
 
-## 1.6b Sampling primitives (D10)
+## 1.6b Sampling and seed primitives (D10, D1)
 
 - `bounded_u32(rng: &mut impl RngCore, n: u32) -> u32`: Lemire's nearly-divisionless method using only `next_u32`, with no `usize`.
 - `fisher_yates(rng, &mut [u8])`: the classic downward loop, `j = bounded_u32(rng, i + 1)`.
-- `RecordingRng<R>`: wraps any `RngCore` and records every byte it hands out (for Turan).
-- `TapeRng`: replays a recorded tape and returns an error if exhausted.
+- `seed::splitmix64(x: u64) -> u64`: the standard SplitMix64 finalizer, used for seed derivation (Phase 4) and time seeds.
+- `seed::time_seed(now_nanos: u64, counter: u64) -> u64 = splitmix64(now_nanos ^ splitmix64(counter))`. A pure function: the caller reads the clock and owns the counter, so core stays WASM-safe.
+- Core depends only on `rand_core` (the trait). `rand_chacha` is a dev-dependency for the golden-vector tests, and generators bring their own concrete RNG.
 
 ## 1.7 Difficulty metrics
 
@@ -136,22 +157,25 @@ pub struct DifficultyMetrics {
 ## Tasks (in order)
 
 1. [ ] `params.rs`, `state.rs` + unit tests (solved detection, validation)
-2. [ ] `moves.rs` + unit tests (every legality branch, partial pour, pour onto empty)
-3. [ ] `stars.rs` + table tests (including `opt = 30`, `opt = 1`, below-optimal), `Session`
-4. [ ] `canon.rs` + brute-force reference for `n_colors ≤ 6` (min over all `n!` relabelings)
-5. [ ] `solver/bfs.rs`
-6. [ ] `solver/astar.rs` + BFS-equivalence test
-7. [ ] `sampling.rs` + golden vectors (fixed seed → fixed shuffle output)
-8. [ ] `generator.rs` types
-9. [ ] `metrics.rs`
-10. [ ] Puzzle code encode/decode
-11. [ ] Criterion benches for `apply`, `canonical_full`, and solve on reference puzzles
+2. [ ] `moves.rs` forward moves + unit tests (every legality branch, partial pour, pour onto empty)
+3. [ ] `moves.rs` reverse moves + round-trip proptest
+4. [ ] `stars.rs` + table tests (including `opt = 30`, `opt = 1`, below-optimal), `Session`
+5. [ ] `canon.rs` + brute-force reference for `n_colors ≤ 6` (min over all `n!` relabelings)
+6. [ ] `solver/bfs.rs`
+7. [ ] `solver/astar.rs` + BFS-equivalence test
+8. [ ] `sampling.rs`, `seed.rs` + golden vectors (fixed seed → fixed shuffle output, fixed inputs → fixed seeds)
+9. [ ] `generator.rs` types
+10. [ ] `metrics.rs`
+11. [ ] Puzzle code encode/decode
+12. [ ] Criterion benches for `apply`, `canonical_full`, and solve on reference puzzles
 
 ## Tests
 
 - **Unit:** rules, solver on hand-made puzzles (including known unsolvable ones), stars table.
 - **Proptest:**
-  - unit counts per color are preserved after every legal move;
+  - unit counts per color are preserved after every legal move and every reverse move;
+  - `unapply` followed by the matching forward pour returns the original state (1.2b invariant);
+  - a random walk of reverse moves from a solved state always yields a solvable state;
   - applying the returned solution reaches a solved state in exactly `opt_moves` moves;
   - `canonical_full` (and its hash) is invariant under random tube permutation × random color permutation;
   - `canonical_full` matches the brute-force minimum for `n_colors ≤ 6`;
@@ -162,7 +186,7 @@ pub struct DifficultyMetrics {
 
 ## Acceptance
 
-The roadmap gate (unit tests, the three named proptests), plus: A\*≡BFS on 10k puzzles, `canonical_full` ≡ brute force, golden vectors committed.
+The roadmap gate (unit tests, the three named proptests), plus: A\*≡BFS on 10k puzzles, `canonical_full` ≡ brute force, the reverse-move round trip, golden vectors committed, and CI green on both OSes (including the release-mode heavy-tests job).
 
 ## Risks / open points
 

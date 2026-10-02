@@ -1,5 +1,5 @@
-//! Turan Water Sort generator: the uniform algorithm driven by OS entropy instead of a seeded
-//! PRNG. Puzzles are reproduced from their recorded entropy tape.
+//! Turan Water Sort generator: strategy-based construction (reverse scramble from a solved state,
+//! constrained shuffle) on a time-seeded `ChaCha20Rng`, validated by the `water_sort_core` solver.
 
 #[cfg(test)]
 mod tests {

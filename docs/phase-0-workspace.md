@@ -29,7 +29,7 @@ jepa_games/
 ```
 
 - `[workspace.dependencies]`: `rand_core`, `rand_chacha`, `getrandom`, `rayon`, `serde` (derive), `serde_json`, `xxhash-rust` (xxh3), `thiserror`, `clap` (CLI), `proptest` (dev). `rand` is used only where convenient outside generation (see D10).
-- `[workspace.lints.rust] unsafe_code = "forbid"` workspace-wide, which is stricter than the roadmap. The only planned exception is the optional RDSEED source in `turan_water_sort` (D1), which would override it to `deny` locally with a justified `#[allow]`. `water_sort_core` also gets `#![forbid(unsafe_code)]` explicitly, as the roadmap asks.
+- `[workspace.lints.rust] unsafe_code = "forbid"` workspace-wide, which is stricter than the roadmap. No exceptions are planned. `water_sort_core` also gets `#![forbid(unsafe_code)]` explicitly, as the roadmap asks.
 - `[workspace.lints.clippy]`: `pedantic` at warn level, with a short allow-list for noisy lints (`module_name_repetitions`, `must_use_candidate`).
 - Release profile for the solver: `opt-level = 3`, `lto = "thin"`, `codegen-units = 1`.
 

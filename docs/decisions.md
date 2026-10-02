@@ -4,17 +4,22 @@ Each entry has a status: **decided**, **proposed** (default the plans assume unt
 
 ---
 
-## D1 — Turan generator = true random generation — decided (2026-10-02)
+## D1 — Turan generator = time-seeded, strategy-based construction — decided (2026-10-02)
 
-The Turan generator uses the **same shuffle algorithm** as the uniform generator (Fisher-Yates + solver rejection). The only difference is the randomness source: uniform uses a seeded ChaCha20 PRNG, and Turan draws every random decision from a true/entropy source with no seed.
+Goal: variation in puzzle *generation types* at minimal code cost. It is not a randomness-source experiment.
 
-Consequences:
+History: first decided as "same algorithm as uniform, true random source". That was dropped because a different randomness source produces the same puzzle distribution, so it gives no variation. It also forced a seedless "entropy tape" provenance design, now removed.
 
-- **No `u64` seed exists** for Turan puzzles. Reproducibility comes from recording the random bytes consumed (the *entropy tape*) and replaying them. See D7.
-- **Expected outcome is a null result.** A good CSPRNG cannot be told apart from true randomness by any feasible test. Fisher-Yates driven by either source samples the same distribution. The Phase 3 / Phase 7 comparisons are therefore *equivalence* tests: they should find no difference, and finding one would point to a bug (biased sampling, a broken entropy source, or a pipeline difference). The plans treat it this way. If the research question was meant to be "does the generator distribution matter", Turan needs a different distribution (for example, reverse-scramble from a solved state), and D1 should be revisited.
-- Entropy source, in order of preference:
-  1. OS entropy via `getrandom` (BCryptGenRandom/ProcessPrng on Windows, `getrandom(2)` on Linux, `crypto.getRandomValues` in the browser). Strictly speaking this is a CSPRNG continuously reseeded from hardware entropy, which is the standard meaning of "true random" in software.
-  2. Optional `--source rdseed` (raw x86 hardware entropy). This needs `unsafe` intrinsics, so it is isolated in the `turan_water_sort` crate behind a feature flag and is not available on WASM.
+The current design:
+
+- **Seed: time-based.** `seed = splitmix64(now_unix_nanos ^ splitmix64(counter))`, where `counter` is a process-wide `AtomicU64` incremented once per puzzle. Without the counter, puzzles generated in parallel within the same clock tick would get identical seeds. The seed is recorded like uniform's, so every Turan puzzle is reproducible from `(seed, params, config)`. A time seed is *not* true randomness. It is a convenient seed choice for a normal PRNG.
+- **RNG: `ChaCha20Rng::seed_from_u64(seed)`**, the same as uniform.
+- **Construction: a strategy enum**, so new generation types cost one enum arm and touch nothing outside `turan_water_sort`:
+  - `Scramble { steps }` (first, default): start from a solved state and apply random *reverse* pours. It is solvable by construction and gives strongly different statistics from uniform (longer same-color runs, a different difficulty profile).
+  - `Constrained` (second, optional): uniform Fisher-Yates plus rejection of any fill with two vertically adjacent same-color units.
+- **Consequence for evaluation:** the two generators now produce different distributions over the *same* set of puzzles (both use the standard layout, see Phase 3). The Phase 7 cross-evaluation (train on one, test on the other) is a real generalization test.
+
+The time source is passed into core as a number (`now_nanos: u64`). Core never calls the clock, so it stays pure and WASM-safe: on `wasm32-unknown-unknown`, `std::time::SystemTime::now()` panics, so the web build supplies `Date.now()`.
 
 ## D2 — Uniform over which space? — decided (2026-10-02): labeled configurations
 
@@ -45,25 +50,25 @@ Integers are used because floating point gives wrong thresholds: `0.10 * 30.0 = 
 
 Matrix: `ubuntu-latest` + `windows-latest`. Separate jobs for wasm32 and Python as those phases arrive.
 
-## D7 — `Generator` trait amended — proposed
+## D7 — `Generator` trait: roadmap shape + config, variant and fresh seed — decided (2026-10-02)
 
-The roadmap's `generate(&self, params, seed: u64)` cannot express a seedless true-random generator. Amended form:
+The roadmap's `seed: u64` shape stays, since both generators are seeded (D1). Additions:
 
 ```rust
-pub enum Provenance {
-    Seed(u64),                         // uniform: ChaCha20Rng::seed_from_u64
-    EntropyTape { tape: Vec<u8> },     // turan: bytes consumed by the accepted attempt
-}
-
 pub trait Generator {
-    const ID: &'static str;
-    const VERSION: u32;
-    fn generate(&self, params: &Params, cfg: &GenConfig) -> Result<GeneratedPuzzle, GenError>;
-    fn replay(&self, params: &Params, provenance: &Provenance) -> Result<State, GenError>;
+    const ID: &'static str;          // "uniform", "turan"
+    const VERSION: u32;              // bump when the algorithm changes
+    /// Human-readable sub-type, recorded with every puzzle, e.g. "fisher_yates", "scramble(steps=40)".
+    fn variant(&self) -> String;
+    /// A new seed when the caller supplies none: OS entropy for uniform, time + counter for turan.
+    fn fresh_seed(&self, now_nanos: u64) -> u64;
+    fn generate(&self, params: &Params, seed: u64, cfg: &GenConfig) -> Result<GeneratedPuzzle, GenError>;
 }
 ```
 
-`GeneratedPuzzle.seed: u64` becomes `provenance: Provenance`. Uniform keeps a convenience `generate_from_seed(params, seed)`. Separately, every puzzle gets a **puzzle code**, a compact base32 encoding of params + initial state. It works for both generators and is what the web "open puzzle" box accepts.
+- `GenConfig` (`min_opt`, `max_attempts`, `SolverLimits`) is part of the reproducibility key. Changing the solver limits can change which attempt is accepted (Phase 2).
+- `GeneratedPuzzle` gains `generator_variant: String` and `puzzle_code: String`, and returns a `Result` rather than panicking.
+- Every puzzle gets a **puzzle code**, a compact base32 encoding of params + initial state. It opens a puzzle without re-running the generator and is accepted by the web "open puzzle" box next to `(generator, seed)`.
 
 ## D8 — Canonical hash must be exact — proposed
 
@@ -83,7 +88,7 @@ The roadmap's "sort tubes, then relabel colors by first appearance" is **not** a
 
 ## D10 — Own sampling primitives — proposed
 
-`rand`'s `shuffle` / `gen_range` algorithms can change between crate versions and can depend on `usize` width (64-bit native vs 32-bit wasm32). The core crate implements its own `bounded_u32` (Lemire's method with rejection on `next_u32`) and Fisher-Yates. Both generators use this exact code, so only the RNG source differs (D1).
+`rand`'s `shuffle` / `gen_range` algorithms can change between crate versions and can depend on `usize` width (64-bit native vs 32-bit wasm32). The core crate implements its own `bounded_u32` (Lemire's method with rejection on `next_u32`) and Fisher-Yates. Both generators use these primitives, so their results are bit-identical on native, wasm32 and Python.
 
 ## D11 — Generation never uses wall-clock limits — proposed
 

@@ -8,8 +8,13 @@ A seeded, reproducible generator that samples uniformly from solvable, unsolved 
 
 ```rust
 pub struct Uniform;
-impl Generator for Uniform { const ID: &str = "uniform"; const VERSION: u32 = 1; ... }
-impl Uniform { pub fn generate_from_seed(&self, p: &Params, seed: u64, cfg: &GenConfig) -> Result<GeneratedPuzzle, GenError>; }
+impl Generator for Uniform {
+    const ID: &'static str = "uniform";
+    const VERSION: u32 = 1;
+    fn variant(&self) -> String { "fisher_yates".into() }
+    fn fresh_seed(&self, _now_nanos: u64) -> u64;   // 64 bits from getrandom
+    fn generate(&self, p: &Params, seed: u64, cfg: &GenConfig) -> Result<GeneratedPuzzle, GenError>;
+}
 ```
 
 Algorithm:
@@ -23,10 +28,10 @@ Algorithm:
    4. Reject if solved. Otherwise solve with state-count limits only (D11).
    5. Reject if `Unsolvable`, `Timeout`, or `opt_moves < min_opt`. Otherwise accept.
    6. Rejection continues the **same** RNG stream, so `(seed, params, cfg, VERSION)` fully determines the result.
-4. Fill `GeneratedPuzzle`: provenance `Seed(seed)`, `attempts`, metrics, hash, puzzle code.
+4. Fill `GeneratedPuzzle`: `seed`, `generator_variant`, `attempts`, metrics, hash, puzzle code.
 5. `max_attempts` exhausted → `GenError::TooManyAttempts`.
 
-`replay(params, Seed(s))` re-runs this loop. It needs the solver, since rejection decisions are part of the stream, so it must be called with the same `GenConfig`. The stored puzzle code is the cheap path.
+Reproducing a puzzle means calling `generate(params, seed, cfg)` again. This re-runs the solver, because rejection decisions are part of the stream, so it must use the same `GenConfig`. Decoding the stored puzzle code is the cheap path.
 
 Note: the **solver limits are part of the generator's identity**. Changing `max_states` can turn a previously rejected `Timeout` into an acceptance and shift every later puzzle. `GenConfig` is therefore stored in every record (Phase 4), and the default config is versioned along with `VERSION`.
 
@@ -74,7 +79,7 @@ The supported range (D3) is the set of cells meeting the criterion (proposed: p9
 
 ## Tasks
 
-1. [ ] `Uniform` generator + `generate_from_seed`
+1. [ ] `Uniform` generator (`Generator` impl, `fresh_seed` via `getrandom`)
 2. [ ] Golden test: 20 fixed seeds × 3 configs → expected puzzle codes (committed)
 3. [ ] Enumeration helper (in `water_sort_core`'s test utilities)
 4. [ ] Chi-square tests + negative control

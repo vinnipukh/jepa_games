@@ -17,16 +17,17 @@ web/
     └── src/ui/*.ts
 ```
 
-- **Rust API** (`wasm-bindgen`): `generate(generator, params, seed?) -> PuzzleJs`, `from_code(code)`, a `Session` wrapper (`pour`, `undo`, `restart`, `moves_counted`, `is_solved`, `stars`), `legal_moves`, `export_trajectory()`. All rule enforcement and move counting go through core's `Session` (Phase 1.5), never through TypeScript.
-- **getrandom on wasm32:** `getrandom` with the `wasm_js` feature and `--cfg getrandom_backend="wasm_js"` in `.cargo/config.toml` for the wasm target. Without it the build fails.
+- **Rust API** (`wasm-bindgen`): `generate(generator, params, seed?, strategy?) -> PuzzleJs`, `from_code(code)`, a `Session` wrapper (`pour`, `undo`, `restart`, `moves_counted`, `is_solved`, `stars`), `legal_moves`, `export_trajectory()`. All rule enforcement and move counting go through core's `Session` (Phase 1.5), never through TypeScript.
+- **getrandom on wasm32:** `getrandom` with the `wasm_js` feature and `--cfg getrandom_backend="wasm_js"` in `.cargo/config.toml` for the wasm target. Without it the build fails. (Check the exact cfg name for `getrandom` 0.4 when this phase starts.)
+- **Time on wasm32:** `std::time::SystemTime::now()` panics on `wasm32-unknown-unknown`. The web crate passes `js_sys::Date::now()` (ms → ns) into `fresh_seed(now_nanos)` for Turan. Core never reads the clock (D1).
 - **Web Worker:** generation includes solving, which can take noticeable time for larger configurations. Running it in a worker keeps the UI responsive. The UI shows a spinner, and generation uses a wall-clock limit only as a UI guard. The accepted puzzle is still determined by the state-count limit (D11).
 - **Frontend:** plain TypeScript + DOM/SVG tubes, no framework. A small surface, easy to keep the logic out of it.
 
 ## Screens
 
-- **Play:** tubes (click source, then target; invalid target → shake animation, no move counted), move counter, Undo, Restart, New puzzle, generator selector (uniform / turan), parameters (limited to the supported range, D3), puzzle id display (seed for uniform, puzzle code for both) with copy button, "Open puzzle" input accepting a seed (uniform) or a puzzle code.
+- **Play:** tubes (click source, then target; invalid target → shake animation, no move counted), move counter, Undo, Restart, New puzzle, generator selector (uniform / turan, plus a strategy selector for Turan), parameters (limited to the supported range, D3), puzzle id display (generator + seed, and the puzzle code) with copy button, "Open puzzle" input accepting a generator + seed or a puzzle code.
 - **Complete:** player moves, `opt_moves`, stars (1–5), "show optimal solution" replay, export trajectory, next puzzle.
-- **Shareable URL:** `?code=<puzzle_code>` or `?gen=uniform&seed=<seed>&c=6&k=4&e=2`.
+- **Shareable URL:** `?code=<puzzle_code>` or `?gen=uniform&seed=<seed>&c=6&k=4&e=2` (Turan adds `&strategy=scramble&steps=<n>`).
 
 ## Rules (from Phase 1.5)
 

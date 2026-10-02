@@ -1,6 +1,6 @@
 [package]
 name = "turan_water_sort"
-description = "True-random (OS entropy) Water Sort generator with entropy-tape provenance"
+description = "Strategy-based Water Sort generator (reverse scramble, constrained shuffle) with time-based seeding"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -9,7 +9,7 @@ rust-version.workspace = true
 [dependencies]
 water_sort_core.workspace = true
 rand_core.workspace = true
-getrandom.workspace = true
+rand_chacha.workspace = true
 
 [lints]
 workspace = true
