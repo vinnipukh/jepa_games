@@ -4,6 +4,8 @@
 #![forbid(unsafe_code)]
 
 pub mod canon;
+pub mod generator;
+pub mod metrics;
 pub mod moves;
 pub mod params;
 pub mod sampling;
@@ -13,6 +15,10 @@ pub mod stars;
 pub mod state;
 
 pub use canon::{canonical_full, canonical_hash, canonical_tubes, solver_key};
+pub use generator::{
+    Accepted, GenConfig, GenError, GeneratedPuzzle, Generator, MetricsConfig, Rejection, evaluate,
+};
+pub use metrics::DifficultyMetrics;
 pub use moves::{
     InvalidReverseMove, Move, MoveError, ReverseMove, action_mask, apply, check, is_legal,
     is_valid_reverse, legal_moves, reverse_moves, unapply,

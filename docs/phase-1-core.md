@@ -164,7 +164,7 @@ pub struct DifficultyMetrics {
 6. [x] `solver/bfs.rs`
 7. [x] `solver/astar.rs` + BFS-equivalence test
 8. [x] `sampling.rs`, `seed.rs` + golden vectors (fixed seed → fixed shuffle output, fixed inputs → fixed seeds)
-9. [ ] `generator.rs` types
+9. [x] `generator.rs` types
 10. [ ] `metrics.rs`
 11. [ ] Puzzle code encode/decode
 12. [ ] Criterion benches for `apply`, `canonical_full`, and solve on reference puzzles
