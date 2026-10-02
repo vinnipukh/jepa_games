@@ -57,6 +57,23 @@ mod tests {
         let Command::Stats(a) = cli.command;
         assert_eq!(a.colors, args::Range(2..=12));
         assert_eq!((a.max_states, a.base_seed), (5_000_000, 7));
-        assert_eq!(a.generator, args::GeneratorKind::Uniform);
+        assert_eq!(a.generator.generator, args::GeneratorKind::Uniform);
+        assert_eq!(a.out_path(), std::path::Path::new("reports/uniform_stats"));
+        let cli = Cli::parse_from([
+            "water_sort_cli",
+            "stats",
+            "--generator",
+            "turan",
+            "--steps",
+            "80",
+            "--layout",
+            "distributed",
+        ]);
+        let Command::Stats(a) = cli.command;
+        assert_eq!(a.spec().variant(), "scramble(steps=80,layout=distributed)");
+        assert_eq!(
+            a.out_path(),
+            std::path::Path::new("reports").join("turan_scramble_distributed_stats")
+        );
     }
 }
