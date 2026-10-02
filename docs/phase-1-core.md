@@ -157,7 +157,7 @@ pub struct DifficultyMetrics {
 ## Tasks (in order)
 
 1. [x] `params.rs`, `state.rs` + unit tests (solved detection, validation)
-2. [ ] `moves.rs` forward moves + unit tests (every legality branch, partial pour, pour onto empty)
+2. [x] `moves.rs` forward moves + unit tests (every legality branch, partial pour, pour onto empty)
 3. [ ] `moves.rs` reverse moves + round-trip proptest
 4. [ ] `stars.rs` + table tests (including `opt = 30`, `opt = 1`, below-optimal), `Session`
 5. [ ] `canon.rs` + brute-force reference for `n_colors ≤ 6` (min over all `n!` relabelings)

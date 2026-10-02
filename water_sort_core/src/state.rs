@@ -229,6 +229,26 @@ impl State {
             .map(|i| count_changes(self.tube(i)))
             .sum()
     }
+
+    /// Whether tube `i` is non-empty and holds a single color.
+    pub fn is_tube_uniform(&self, i: usize) -> bool {
+        let h = self.heights[i];
+        h > 0 && self.top_run(i) == h
+    }
+
+    /// Removes `k` units from the top of tube `i`. The caller guarantees `k <= height`.
+    pub(crate) fn pop_units(&mut self, i: usize, k: u8) {
+        let h = self.heights[i];
+        self.cells[i][usize::from(h - k)..usize::from(h)].fill(EMPTY);
+        self.heights[i] = h - k;
+    }
+
+    /// Pushes `k` units of `color` onto tube `i`. The caller guarantees they fit.
+    pub(crate) fn push_units(&mut self, i: usize, color: u8, k: u8) {
+        let h = self.heights[i];
+        self.cells[i][usize::from(h)..usize::from(h + k)].fill(color);
+        self.heights[i] = h + k;
+    }
 }
 
 fn count_changes(tube: &[u8]) -> u32 {

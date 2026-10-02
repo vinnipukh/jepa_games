@@ -3,8 +3,10 @@
 
 #![forbid(unsafe_code)]
 
+pub mod moves;
 pub mod params;
 pub mod state;
 
+pub use moves::{Move, MoveError, action_mask, apply, check, is_legal, legal_moves};
 pub use params::{MAX_CAP, MAX_TUBES, Params, ParamsError};
 pub use state::{EMPTY, State, StateError};
