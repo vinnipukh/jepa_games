@@ -3,6 +3,7 @@
 mod args;
 mod compare;
 mod stats;
+mod sweep;
 
 use std::process::ExitCode;
 
@@ -21,12 +22,15 @@ enum Command {
     Stats(stats::StatsArgs),
     /// Two generators side by side: measurements, histograms, two-sample tests, overlap.
     Compare(compare::CompareArgs),
+    /// Turan scramble `steps` sweep per layout, with construction costs.
+    Sweep(sweep::SweepArgs),
 }
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
     let result = match &cli.command {
         Command::Stats(args) => stats::run(args).map(|_| ()),
+        Command::Sweep(args) => sweep::run(args),
         Command::Compare(args) => compare::run(args).map(|path| {
             eprintln!("wrote {}", path.display());
         }),
