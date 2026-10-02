@@ -612,6 +612,7 @@ dependencies = [
  "proptest",
  "rand_core 0.10.1",
  "serde",
+ "serde_json",
  "thiserror",
  "xxhash-rust",
 ]

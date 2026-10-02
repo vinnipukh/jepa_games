@@ -3,8 +3,8 @@
 
 #![forbid(unsafe_code)]
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn crate_builds() {}
-}
+pub mod params;
+pub mod state;
+
+pub use params::{MAX_CAP, MAX_TUBES, Params, ParamsError};
+pub use state::{EMPTY, State, StateError};
