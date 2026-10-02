@@ -243,6 +243,23 @@ impl State {
         self.heights[i] = h - k;
     }
 
+    /// Raw padded cells of tube `i` (all [`MAX_CAP`] cells, [`EMPTY`] above the fill height).
+    pub(crate) const fn raw_tube(&self, i: usize) -> [u8; MAX_CAP] {
+        self.cells[i]
+    }
+
+    /// Builds a state from raw padded tubes. Used by canonicalization, which only permutes tubes
+    /// and relabels colors bijectively, so the invariants hold by construction.
+    pub(crate) fn from_raw_tubes(params: Params, tubes: &[[u8; MAX_CAP]]) -> Self {
+        debug_assert_eq!(tubes.len(), params.n_tubes());
+        let mut state = Self::blank(params);
+        for (i, tube) in tubes.iter().enumerate() {
+            state.cells[i] = *tube;
+            state.heights[i] = to_u8(tube.iter().take_while(|&&c| c != EMPTY).count());
+        }
+        state
+    }
+
     /// Pushes `k` units of `color` onto tube `i`. The caller guarantees they fit.
     pub(crate) fn push_units(&mut self, i: usize, color: u8, k: u8) {
         let h = self.heights[i];
