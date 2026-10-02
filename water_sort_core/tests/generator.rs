@@ -3,8 +3,8 @@
 use rand_chacha::ChaCha20Rng;
 use rand_chacha::rand_core::SeedableRng;
 use water_sort_core::{
-    GenConfig, GenError, GeneratedPuzzle, Generator, Params, State, canonical_hash, evaluate,
-    fisher_yates, puzzle_code, replay,
+    GenConfig, GenError, GeneratedPuzzle, Generator, Observer, Params, State, attempt_loop,
+    canonical_hash, fisher_yates, puzzle_code, replay,
 };
 
 struct Toy;
@@ -21,25 +21,21 @@ impl Generator for Toy {
         Ok(water_sort_core::time_seed(now_nanos, 0))
     }
 
-    fn generate(
+    fn generate_observed<O: Observer>(
         &self,
         params: &Params,
         seed: u64,
         cfg: &GenConfig,
+        observer: &mut O,
     ) -> Result<GeneratedPuzzle, GenError> {
         params.validate()?;
         let mut rng = ChaCha20Rng::seed_from_u64(seed);
-        for attempt in 1..=cfg.max_attempts {
+        let (state, attempts, accepted) = attempt_loop(cfg, observer, || {
             let mut units = State::sorted_units(*params);
             fisher_yates(&mut rng, &mut units);
-            let state = State::from_fill(*params, &units).expect("valid fill");
-            if let Ok(accepted) = evaluate(&state, cfg) {
-                return Ok(self.assemble::<ChaCha20Rng>(state, seed, attempt, accepted, cfg));
-            }
-        }
-        Err(GenError::TooManyAttempts {
-            attempts: cfg.max_attempts,
-        })
+            State::from_fill(*params, &units).expect("valid fill")
+        })?;
+        Ok(self.assemble::<ChaCha20Rng>(state, seed, attempts, accepted, cfg))
     }
 }
 
@@ -53,6 +49,9 @@ fn generated_puzzles_are_consistent_and_reproducible() {
     for seed in 0..20 {
         let g = Toy.generate(&params, seed, &cfg).unwrap();
         assert_eq!(g, Toy.generate(&params, seed, &cfg).unwrap());
+        let (traced, counts) = Toy.generate_traced(&params, seed, &cfg).unwrap();
+        assert_eq!(traced, g);
+        assert_eq!(counts.total() + 1, g.attempts);
         assert_eq!((g.generator_id, g.generator_version), ("toy", 1));
         assert_eq!(g.generator_variant, "fisher_yates");
         assert_eq!(g.seed, seed);

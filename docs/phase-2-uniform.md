@@ -79,12 +79,12 @@ The supported range (D3) is the set of cells meeting the criterion (proposed: p9
 
 ## Tasks
 
-1. [ ] `Uniform` generator (`Generator` impl, `fresh_seed` via `getrandom`)
-2. [ ] Golden test: 20 fixed seeds × 3 configs → expected puzzle codes (committed)
-3. [ ] Enumeration helper (in `water_sort_core`'s test utilities)
-4. [ ] Chi-square tests + negative control
-5. [ ] `water_sort_cli` skeleton (clap) + `stats` subcommand
-6. [ ] Run the measurement grid, write the report, decide D3 (and D2 follow-up)
+1. [x] `Uniform` generator (`Generator` impl, `fresh_seed` via `getrandom`)
+2. [x] Golden test: 20 fixed seeds × 3 configs → expected puzzle codes (committed)
+3. [x] Enumeration helper (`water_sort_core::standard_fills`, public so the uniform crate's tests can use it)
+4. [x] Chi-square tests + negative control
+5. [x] `water_sort_cli` skeleton (clap) + `stats` subcommand
+6. [x] Run the measurement grid, write the report, decide D3 (and D2 follow-up) — report committed; D3 **proposed** (awaiting user decision), D2 follow-up recorded in D3
 
 ## Tests
 

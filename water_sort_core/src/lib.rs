@@ -4,6 +4,7 @@
 #![forbid(unsafe_code)]
 
 pub mod canon;
+pub mod enumerate;
 pub mod generator;
 pub mod metrics;
 pub mod moves;
@@ -14,10 +15,14 @@ pub mod seed;
 pub mod solver;
 pub mod stars;
 pub mod state;
+pub mod supported;
+pub mod symmetry;
 
 pub use canon::{canonical_full, canonical_hash, canonical_tubes, solver_key};
+pub use enumerate::standard_fills;
 pub use generator::{
-    Accepted, GenConfig, GenError, GeneratedPuzzle, Generator, MetricsConfig, Rejection, evaluate,
+    Accepted, Evaluation, GenConfig, GenError, GeneratedPuzzle, Generator, MetricsConfig, Observer,
+    Rejection, RejectionCounts, attempt_loop, evaluate, evaluate_counted,
 };
 pub use metrics::{DifficultyMetrics, compute_metrics};
 pub use moves::{
@@ -31,3 +36,5 @@ pub use seed::{splitmix64, time_seed};
 pub use solver::{SolveResult, SolverLimits, heuristic, replay, solve, solve_astar, solve_bfs};
 pub use stars::{Session, StarConfig, StarError, stars, thresholds};
 pub use state::{EMPTY, State, StateError};
+pub use supported::{SUPPORTED, SupportedRow, is_supported};
+pub use symmetry::is_symmetric;

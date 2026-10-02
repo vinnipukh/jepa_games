@@ -6,7 +6,7 @@ This folder holds the detailed implementation plan for each phase in [`../roadma
 |---|---|---|---|
 | 0 | [Workspace setup](phase-0-workspace.md) | — | done (2026-10-02) |
 | 1 | [`water_sort_core`](phase-1-core.md) | 0 | done (2026-10-02) |
-| 2 | [`uniform_water_sort`](phase-2-uniform.md) | 1 | not started |
+| 2 | [`uniform_water_sort`](phase-2-uniform.md) | 1 | done (2026-10-02; D3 proposed, awaiting decision) |
 | 3 | [`turan_water_sort`](phase-3-turan.md) | 1, 2 | not started |
 | 4 | [Dataset and storage](phase-4-dataset.md) | 2 (3 for cross-generator parts) | not started |
 | 5 | [Python binding and Gymnasium env](phase-5-python.md) | 1, 2 | not started |

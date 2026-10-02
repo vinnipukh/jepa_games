@@ -5,7 +5,9 @@ mod common;
 use common::{below, params_in, permute, random_state, rng};
 use proptest::prelude::*;
 use water_sort_core::canon::encode;
-use water_sort_core::{State, canonical_full, canonical_hash, canonical_tubes, solver_key};
+use water_sort_core::{
+    State, canonical_full, canonical_hash, canonical_tubes, is_symmetric, solver_key,
+};
 
 fn all_perms(n: usize) -> Vec<Vec<u8>> {
     if n == 0 {
@@ -153,5 +155,94 @@ proptest! {
             .collect();
         let t = permute(&s, &random_perm(seed2 ^ 1, s.n_tubes()), &colors);
         prop_assert_eq!(canonical_full(&t), canonical_full(&s));
+    }
+}
+
+/// Reference for [`is_symmetric`]: two identical non-empty tubes, or one of the `n!` color
+/// permutations other than the identity maps the sorted non-empty tubes onto themselves.
+fn symmetric_brute_force(s: &State) -> bool {
+    let sorted_nonempty = |s: &State| {
+        let mut tubes: Vec<Vec<u8>> = s.tubes().into_iter().filter(|t| !t.is_empty()).collect();
+        tubes.sort();
+        tubes
+    };
+    let tubes = sorted_nonempty(s);
+    if tubes.windows(2).any(|w| w[0] == w[1]) {
+        return true;
+    }
+    let identity: Vec<usize> = (0..s.n_tubes()).collect();
+    all_perms(usize::from(s.params().n_colors))
+        .iter()
+        .filter(|sigma| sigma.iter().enumerate().any(|(i, &c)| usize::from(c) != i))
+        .any(|sigma| sorted_nonempty(&permute(s, &identity, sigma)) == tubes)
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(1024))]
+
+    #[test]
+    fn is_symmetric_matches_brute_force(s in small_state()) {
+        prop_assert_eq!(is_symmetric(&s), symmetric_brute_force(&s), "{}", s);
+    }
+
+    #[test]
+    fn is_symmetric_matches_brute_force_on_fills(
+        p in params_in(1..=6, 2..=4, 0..=2),
+        seed in any::<u64>(),
+    ) {
+        let s = common::random_fill(p, seed);
+        prop_assert_eq!(is_symmetric(&s), symmetric_brute_force(&s), "{}", s);
+    }
+
+    #[test]
+    fn is_symmetric_on_symmetric_layouts(
+        (b, m) in prop_oneof![Just((1u8, 6u8)), Just((2, 3)), Just((3, 2)), Just((1, 4)), Just((2, 2))],
+        cap in 2u8..=4,
+        e in 0u8..=2,
+        seed in any::<u64>(),
+    ) {
+        let s = symmetric_state(b, m, cap, e, seed);
+        prop_assert!(is_symmetric(&s), "{}", s);
+        prop_assert!(symmetric_brute_force(&s), "{}", s);
+    }
+
+    #[test]
+    fn is_symmetric_is_invariant(s in small_state(), seed in any::<u64>()) {
+        let n = usize::from(s.params().n_colors);
+        let colors: Vec<u8> = random_perm(seed, n).into_iter().map(|c| u8::try_from(c).unwrap()).collect();
+        let t = permute(&s, &random_perm(seed ^ 1, s.n_tubes()), &colors);
+        prop_assert_eq!(is_symmetric(&t), is_symmetric(&s));
+    }
+}
+
+#[test]
+fn is_symmetric_exhaustive_small() {
+    // Every 2-color cap-3 and 3-color cap-2 fill against the brute force.
+    for p in [
+        common::params(2, 3, 1),
+        common::params(3, 2, 1),
+        common::params(3, 3, 0),
+    ] {
+        let (mut yes, mut total) = (0, 0);
+        for s in water_sort_core::standard_fills(p).unwrap() {
+            assert_eq!(is_symmetric(&s), symmetric_brute_force(&s), "{s}");
+            yes += usize::from(is_symmetric(&s));
+            total += 1;
+        }
+        assert!(yes > 0 && yes < total);
+    }
+}
+
+#[test]
+fn is_symmetric_on_large_puzzles() {
+    // 12 colors: most random fills have no symmetry; doubled layouts always do.
+    let p = common::params(12, 4, 2);
+    let asymmetric = (0..200)
+        .filter(|&seed| !is_symmetric(&common::random_fill(p, seed)))
+        .count();
+    assert!(asymmetric > 190, "{asymmetric}");
+    for seed in 0..20 {
+        assert!(is_symmetric(&symmetric_state(6, 2, 4, 2, seed)));
+        assert!(is_symmetric(&symmetric_state(3, 4, 4, 2, seed)));
     }
 }

@@ -14,3 +14,8 @@ getrandom.workspace = true
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+serde.workspace = true
+serde_json.workspace = true
+statrs.workspace = true
