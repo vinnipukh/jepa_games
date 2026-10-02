@@ -81,7 +81,7 @@ Proposed `SUPPORTED_DISTRIBUTED` (`n_colors` from 2 up to):
 | 4 | 9 | 11 |
 | 5 | **8** (standard 7) | **8** (standard 9) |
 
-- **`n_empty = 1`: still rejection-bound, but less.** Spreading the free space makes far fewer fills unsolvable (12 × 4 × 1: 99.96 % unsolvable, about the same; 8 × 5 × 1: 99.35 % vs ≥ 99.98 % beyond the standard bound). The attempts-headroom condition (machine-independent) sets the bound: 8 × 5 × 1 needs 724 attempts at p99, 9 × 5 × 1 needs 2477.
+- **`n_empty = 1`: still rejection-bound, but less.** Spreading the free space makes somewhat fewer fills unsolvable (8 × 5 × 1: 99.35 % vs 99.59 % standard, attempts p99 724 vs 1180), which buys one color at capacity 5. The attempts-headroom condition (machine-independent) sets the bound: 8 × 5 × 1 needs 724 attempts at p99, 9 × 5 × 1 needs 2477.
 - **`n_empty = 2`: solver-bound, and costlier than standard.** On the same machine the distributed solver p99 is 1.2–3× the standard one (11 × 4 × 2: 536 vs 362 ms; 9 × 5 × 2: 829 vs 279 ms). Scaled: 12 × 4 × 2 → 1157 ms (out), 9 × 5 × 2 → 1061 ms (out), 11 × 4 × 2 → 686 ms, 8 × 5 × 2 → 414 ms. Unscaled, the cloud report marks 12 × 4 × 2 and 9 × 5 × 2 as passing; they are left out because the standard table was set on the slower machine.
 - API: `SUPPORTED_DISTRIBUTED`, `supported_rows(layout)`, `is_supported_in(&params, layout)`. `is_supported(&params)` is unchanged and means the standard layout. A CLI test checks that every proposed distributed cell passes the criterion in the committed report.
 
