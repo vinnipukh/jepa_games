@@ -345,6 +345,7 @@ fn summarize(
         cell.rejections.unsolvable += r.unsolvable;
         cell.rejections.timeout += r.timeout;
         cell.rejections.below_min_opt += r.below_min_opt;
+        cell.rejections.construction += r.construction;
     }
     cell.attempts_mean = mean(attempts.iter().map(|&a| f64::from(a)));
     cell.attempts_p50 = percentile(&attempts, 0.5).unwrap_or(0);

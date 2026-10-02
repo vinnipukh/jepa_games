@@ -23,7 +23,7 @@ pub use canon::{canonical_full, canonical_hash, canonical_tubes, solver_key};
 pub use enumerate::{distributed_fills, standard_fills};
 pub use generator::{
     Accepted, Evaluation, GenConfig, GenError, GeneratedPuzzle, Generator, MetricsConfig, Observer,
-    Rejection, RejectionCounts, attempt_loop, evaluate, evaluate_counted,
+    Rejection, RejectionCounts, attempt_loop, evaluate, evaluate_counted, try_attempt_loop,
 };
 pub use layout::{HeightCounts, Layout, UnknownLayout, sample_heights};
 pub use metrics::{DifficultyMetrics, compute_metrics};
