@@ -1,0 +1,19 @@
+[package]
+name = "water_sort_core"
+description = "Water Sort state, move rules, solver, star metric, canonical hash and Generator trait"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+rand_core.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+xxhash-rust.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,19 @@
+[package]
+name = "water_sort_cli"
+description = "Batch generation, validation and statistics for Water Sort puzzles"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+water_sort_core.workspace = true
+uniform_water_sort.workspace = true
+turan_water_sort.workspace = true
+clap.workspace = true
+rayon.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,30 @@
+# Rust
+/target/
+**/*.rs.bk
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+*.so
+*.pyd
+.pytest_cache/
+
+# Web
+web/app/node_modules/
+web/app/dist/
+web/pkg/
+
+# Generated data and reports
+/data/
+*.parquet
+*.npz
+runs/
+wandb/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

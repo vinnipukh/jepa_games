@@ -1,0 +1,16 @@
+[package]
+name = "uniform_water_sort"
+description = "Fisher-Yates + rejection sampling Water Sort generator (seeded ChaCha20)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+water_sort_core.workspace = true
+rand_core.workspace = true
+rand_chacha.workspace = true
+getrandom.workspace = true
+
+[lints]
+workspace = true
