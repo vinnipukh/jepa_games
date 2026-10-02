@@ -123,6 +123,11 @@ pub trait Generator {
 pub struct GenConfig {
     /// Reject puzzles whose optimum is below this.
     pub min_opt: u32,
+    /// Reject puzzles whose optimum is above this (`None`: no upper bound). With `min_opt`, a
+    /// target difficulty band (D16). Left out of the JSON when `None`, so records and golden files
+    /// written before it existed read back unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_opt: Option<u32>,
     /// Give up after this many rejected attempts.
     pub max_attempts: u32,
     /// Solver state-count limit. Generation never uses a time limit (D11).
@@ -134,6 +139,7 @@ impl Default for GenConfig {
     fn default() -> Self {
         Self {
             min_opt: 1,
+            max_opt: None,
             max_attempts: 10_000,
             max_states: SolverLimits::DEFAULT_MAX_STATES,
             metrics: MetricsConfig::default(),
@@ -208,6 +214,9 @@ pub enum Rejection {
     BelowMinOpt {
         opt_moves: u32,
     },
+    AboveMaxOpt {
+        opt_moves: u32,
+    },
     /// The generator's construction gave up on this attempt before validation (e.g. Turan's
     /// scramble did not return to the standard layout within its step limit, D15).
     Construction,
@@ -222,7 +231,8 @@ pub struct Accepted {
 }
 
 /// The validation every generator applies to a candidate: reject solved states, solve with the
-/// state-count limit only, reject `Unsolvable`, `Timeout` and `opt_moves < min_opt`.
+/// state-count limit only, reject `Unsolvable`, `Timeout`, `opt_moves < min_opt` and
+/// `opt_moves > max_opt`.
 ///
 /// # Errors
 ///
@@ -252,6 +262,9 @@ pub fn evaluate_counted(state: &State, cfg: &GenConfig) -> Evaluation {
     let outcome = match result {
         SolveResult::Solvable { opt_moves, .. } if opt_moves < cfg.min_opt => {
             Err(Rejection::BelowMinOpt { opt_moves })
+        }
+        SolveResult::Solvable { opt_moves, .. } if cfg.max_opt.is_some_and(|m| opt_moves > m) => {
+            Err(Rejection::AboveMaxOpt { opt_moves })
         }
         SolveResult::Solvable {
             opt_moves,
@@ -292,6 +305,8 @@ pub struct RejectionCounts {
     pub unsolvable: u32,
     pub timeout: u32,
     pub below_min_opt: u32,
+    #[serde(default)]
+    pub above_max_opt: u32,
     pub construction: u32,
 }
 
@@ -303,6 +318,7 @@ impl RejectionCounts {
             Rejection::Unsolvable => &mut self.unsolvable,
             Rejection::Timeout => &mut self.timeout,
             Rejection::BelowMinOpt { .. } => &mut self.below_min_opt,
+            Rejection::AboveMaxOpt { .. } => &mut self.above_max_opt,
             Rejection::Construction => &mut self.construction,
         };
         *slot += 1;
@@ -314,6 +330,7 @@ impl RejectionCounts {
             + self.unsolvable
             + self.timeout
             + self.below_min_opt
+            + self.above_max_opt
             + self.construction
     }
 }
@@ -402,6 +419,26 @@ mod tests {
             evaluate(&one_move, &strict),
             Err(Rejection::BelowMinOpt { opt_moves: 1 })
         );
+        let two_moves = State::from_tubes(P, &[&[0, 1][..], &[1, 1], &[2, 2, 2], &[0, 0]]).unwrap();
+        let band = GenConfig {
+            max_opt: Some(1),
+            ..cfg
+        };
+        assert_eq!(evaluate(&one_move, &band).unwrap().opt_moves, 1);
+        assert_eq!(evaluate(&two_moves, &cfg).unwrap().opt_moves, 2);
+        assert_eq!(
+            evaluate(&two_moves, &band),
+            Err(Rejection::AboveMaxOpt { opt_moves: 2 })
+        );
+        let mut counts = RejectionCounts::default();
+        counts.record(&Rejection::AboveMaxOpt { opt_moves: 3 });
+        assert_eq!((counts.above_max_opt, counts.total()), (1, 1));
+        // `max_opt: None` is left out of the JSON, and JSON without it reads back as `None`.
+        let json = serde_json::to_string(&cfg).unwrap();
+        assert!(!json.contains("max_opt"));
+        assert_eq!(serde_json::from_str::<GenConfig>(&json).unwrap(), cfg);
+        let json = serde_json::to_string(&band).unwrap();
+        assert_eq!(serde_json::from_str::<GenConfig>(&json).unwrap(), band);
         let tiny = GenConfig {
             max_states: 1,
             ..cfg

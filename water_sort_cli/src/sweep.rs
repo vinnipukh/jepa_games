@@ -345,7 +345,7 @@ fn markdown(args: &SweepArgs, threads: usize, rows: &[Row]) -> String {
             c.attempts_mean,
             c.attempts_p99,
             c.rate(j.construction) * 100.0,
-            c.rate(j.already_solved + j.below_min_opt) * 100.0,
+            c.rate(j.already_solved + j.below_min_opt + j.above_max_opt) * 100.0,
             c.opt_mean,
             c.opt_p50,
             c.opt_p99,

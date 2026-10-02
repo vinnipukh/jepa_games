@@ -39,6 +39,9 @@ pub struct CompareArgs {
     pub max_attempts: u32,
     #[arg(long, default_value_t = GenConfig::default().min_opt)]
     pub min_opt: u32,
+    /// Reject puzzles with `opt_moves` above this (D16).
+    #[arg(long)]
+    pub max_opt: Option<u32>,
     #[arg(long, default_value_t = MetricsConfig::default().random_rollouts)]
     pub rollouts: u32,
     #[arg(long, default_value_t = 0)]
@@ -77,6 +80,7 @@ impl CompareArgs {
     fn config(&self) -> GenConfig {
         GenConfig {
             min_opt: self.min_opt,
+            max_opt: self.max_opt,
             max_attempts: self.max_attempts,
             max_states: self.max_states,
             metrics: MetricsConfig {
@@ -362,7 +366,10 @@ fn section(params: Params, a: &Side, b: &Side) -> String {
             f(c.rate(r.construction) * 100.0, 2),
             f(c.rate(r.unsolvable) * 100.0, 2),
             f(c.rate(r.timeout) * 100.0, 2),
-            f(c.rate(r.below_min_opt + r.already_solved) * 100.0, 2),
+            f(
+                c.rate(r.below_min_opt + r.above_max_opt + r.already_solved) * 100.0,
+                2,
+            ),
             format!("{} / {} / {}", f(c.opt_mean, 2), c.opt_p50, c.opt_p99),
             format!("{} / {}", f(c.solve_ms_p50, 2), f(c.solve_ms_p99, 1)),
             format!("{} / {}", f(c.gen_ms_p50, 1), f(c.gen_ms_p99, 1)),
@@ -377,7 +384,7 @@ fn section(params: Params, a: &Side, b: &Side) -> String {
         "construction rejections %",
         "unsolvable %",
         "timeout %",
-        "solved or below min_opt %",
+        "solved or outside opt band %",
         "opt mean / p50 / p99",
         "solve ms p50 / p99",
         "gen ms p50 / p99",
@@ -527,7 +534,7 @@ fn report(args: &CompareArgs, threads: usize, sections: &[String]) -> String {
     let _ = writeln!(
         md,
         "Produced by `water_sort_cli compare --a {} --b {} --configs {} --samples {} --max-states {} \
-         --max-attempts {} --min-opt {} --rollouts {} --base-seed {}` (release build, {threads} \
+         --max-attempts {} --min-opt {}{} --rollouts {} --base-seed {}` (release build, {threads} \
          threads). Both sides use the seeds `splitmix64(base_seed ^ i)`; every number except the \
          `ms` columns is deterministic.\n",
         spec_arg(args.a),
@@ -537,6 +544,8 @@ fn report(args: &CompareArgs, threads: usize, sections: &[String]) -> String {
         cfg.max_states,
         cfg.max_attempts,
         cfg.min_opt,
+        cfg.max_opt
+            .map_or_else(String::new, |m| format!(" --max-opt {m}")),
         cfg.metrics.random_rollouts,
         args.base_seed,
     );
@@ -633,6 +642,7 @@ mod tests {
             max_states: 5_000_000,
             max_attempts: 10_000,
             min_opt: 1,
+            max_opt: None,
             rollouts: 8,
             base_seed: 1,
             out: Some(out),
