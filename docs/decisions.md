@@ -246,7 +246,7 @@ Evidence: [`reports/dataset_phase4.md`](../reports/dataset_phase4.md), with the 
 - **Measured at 1M:** 999 929 records after dedup, 667.8 s on 4 threads, 62.7 MB of Parquet (train 50.1, val 6.3, test 6.3 MB), `validate` 11.1 s with 9931 records regenerated. A second run with 2 threads, the same master seed and the same `created_at` gives byte-identical record files.
 - **Decided (2026-10-03, user):** 6 × 4 × 2 standard uniform is the dataset configuration for Phases 5 and 7. No larger dataset is generated now; [`docs/datasets.md`](datasets.md) documents how to make one (larger sizes, `--tier hard`). Turan datasets use the default reverse search (`turan:search:10000:depth=300`); the other strategies (`pour-walk` distributed only, `scramble`, `constrained`) stay available through `--strategy` (user, 2026-10-03).
 
-## D19 — Phase 5 implementation refinements — proposed (2026-10-03)
+## D19 — Phase 5 implementation refinements — decided (2026-10-03)
 
 Recorded while implementing the Python binding, `WaterSortEnv`, the native vector env and the trajectory logger. None of these changes what a generator produces; every existing golden file is unchanged.
 
@@ -263,4 +263,4 @@ Recorded while implementing the Python binding, `WaterSortEnv`, the native vecto
 - **serde_json `float_roundtrip`** is enabled workspace-wide: without it serde_json reads some f64 values one ULP off, and the golden rollouts' shaped rewards must read back exactly. Parsing only becomes exact; no output changes.
 - **Branch.** The cloud session was bound to branch `ccr-ebe28a1c-e1yd7d`, so Phase 5 was developed there instead of `phase-5-python`.
 - **Measured** (4-core cloud VM, 6 × 4 × 2 uniform): native vector env 31k steps/s at 64 envs and 71k at 1024 vs 15k / 18k for `SyncVectorEnv` (random legal actions; puzzle generation on autoreset dominates). Trajectory collection on 5000 train puzzles, single thread: optimal 65k transitions/s, ε = 0.1 18k/s (re-solving after deviations), random 85k/s, greedy 39k/s; about 15 bytes per transition in zstd Parquet. Within `4 · opt_moves`, random play solved 75 % of the puzzles and greedy 76 %.
-- **Left open for the user:** D4 (`k = 4`) stays proposed until the RL baseline; the dead-end solver budget (100 000 states) is a default of an opt-in check.
+- **Decided (2026-10-03, user):** all of the above accepted as proposed, including the 100 000-state dead-end budget and the provisional `human` import format (Phase 6 may adjust it). D4 (`k = 4`) stays proposed until the RL baseline (Phase 7).
