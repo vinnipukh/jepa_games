@@ -17,6 +17,12 @@ rayon.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 statrs.workspace = true
+arrow-array.workspace = true
+arrow-schema.workspace = true
+parquet.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+rustc-hash.workspace = true
 
 [lints]
 workspace = true

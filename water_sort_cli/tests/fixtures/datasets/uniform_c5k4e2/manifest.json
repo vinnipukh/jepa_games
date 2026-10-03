@@ -1,0 +1,131 @@
+{
+  "format_version": 1,
+  "generator": {
+    "id": "uniform",
+    "version": 1,
+    "variant": "fisher_yates",
+    "layout": "standard",
+    "spec": "uniform:standard"
+  },
+  "params": {
+    "n_colors": 5,
+    "capacity": 4,
+    "n_empty": 2
+  },
+  "gen_config": {
+    "min_opt": 1,
+    "max_attempts": 10000,
+    "max_states": 5000000,
+    "metrics": {
+      "random_rollouts": 64,
+      "rollout_cap_factor": 4,
+      "dead_end_ratios": false
+    }
+  },
+  "gen_config_json": "{\"min_opt\":1,\"max_attempts\":10000,\"max_states\":5000000,\"metrics\":{\"random_rollouts\":64,\"rollout_cap_factor\":4,\"dead_end_ratios\":false}}",
+  "supported": true,
+  "master_seed": "00005eed20261003",
+  "master_seed_source": "given",
+  "seed_rule": "seed_i = splitmix64(master_seed ^ i)",
+  "count": 200,
+  "records": 200,
+  "failures": [],
+  "dedup": {
+    "duplicates": 0,
+    "duplicate_rate": 0.0,
+    "hash_collisions": 0,
+    "dropped_file": "duplicates.csv",
+    "saturation": [
+      [
+        10,
+        0
+      ],
+      [
+        100,
+        0
+      ],
+      [
+        200,
+        0
+      ]
+    ]
+  },
+  "split": {
+    "rule": "canonical_hash % 100",
+    "ranges": {
+      "train_end": 80,
+      "val_end": 90
+    },
+    "buckets": {
+      "train": [
+        0,
+        80
+      ],
+      "val": [
+        80,
+        90
+      ],
+      "test": [
+        90,
+        100
+      ]
+    },
+    "counts": {
+      "train": 160,
+      "val": 23,
+      "test": 17
+    }
+  },
+  "tiers": {
+    "easy": 79,
+    "hard": 74,
+    "medium": 47
+  },
+  "split_tiers": {
+    "train": {
+      "easy": 61,
+      "hard": 62,
+      "medium": 37
+    },
+    "val": {
+      "easy": 11,
+      "hard": 6,
+      "medium": 6
+    },
+    "test": {
+      "easy": 7,
+      "hard": 6,
+      "medium": 4
+    }
+  },
+  "format": "parquet",
+  "files": [
+    {
+      "path": "train.parquet",
+      "split": "train",
+      "records": 160,
+      "bytes": 18374,
+      "sha256": "f93edb0e7d31885c13b8c727ca35670530b4fc3c7f05fb5310e517ee70c5bdc6"
+    },
+    {
+      "path": "val.parquet",
+      "split": "val",
+      "records": 23,
+      "bytes": 10685,
+      "sha256": "92187f6df8594aa0738fec4d15c1585d95ebedd4099fd5a3fec48aee087ccda3"
+    },
+    {
+      "path": "test.parquet",
+      "split": "test",
+      "records": 17,
+      "bytes": 10381,
+      "sha256": "ccedd9feb0fe51fec20fc37faea08b50b7a38cd124a5b3f22a65e9f4b988bd20"
+    }
+  ],
+  "tool_version": "fixture",
+  "created_at": "2026-10-03T00:00:00.000000000Z",
+  "started_at": "2026-10-03T09:41:18.350765074Z",
+  "finished_at": "2026-10-03T09:41:21.768388754Z",
+  "wall_time_secs": 3.417646462,
+  "threads": 2
+}

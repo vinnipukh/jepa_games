@@ -1,0 +1,143 @@
+{
+  "format_version": 1,
+  "generator": {
+    "id": "uniform",
+    "version": 1,
+    "variant": "fisher_yates",
+    "layout": "standard",
+    "spec": "uniform:standard"
+  },
+  "params": {
+    "n_colors": 6,
+    "capacity": 4,
+    "n_empty": 2
+  },
+  "gen_config": {
+    "min_opt": 1,
+    "max_attempts": 10000,
+    "max_states": 5000000,
+    "metrics": {
+      "random_rollouts": 64,
+      "rollout_cap_factor": 4,
+      "dead_end_ratios": false
+    }
+  },
+  "gen_config_json": "{\"min_opt\":1,\"max_attempts\":10000,\"max_states\":5000000,\"metrics\":{\"random_rollouts\":64,\"rollout_cap_factor\":4,\"dead_end_ratios\":false}}",
+  "supported": true,
+  "master_seed": "88f5e8812f916163",
+  "master_seed_source": "fresh",
+  "seed_rule": "seed_i = splitmix64(master_seed ^ i)",
+  "count": 1000000,
+  "records": 999929,
+  "failures": [],
+  "dedup": {
+    "duplicates": 71,
+    "duplicate_rate": 0.000071,
+    "hash_collisions": 0,
+    "dropped_file": "duplicates.csv",
+    "saturation": [
+      [
+        10,
+        0
+      ],
+      [
+        100,
+        0
+      ],
+      [
+        1000,
+        0
+      ],
+      [
+        10000,
+        0
+      ],
+      [
+        100000,
+        2
+      ],
+      [
+        1000000,
+        71
+      ]
+    ]
+  },
+  "split": {
+    "rule": "canonical_hash % 100",
+    "ranges": {
+      "train_end": 80,
+      "val_end": 90
+    },
+    "buckets": {
+      "train": [
+        0,
+        80
+      ],
+      "val": [
+        80,
+        90
+      ],
+      "test": [
+        90,
+        100
+      ]
+    },
+    "counts": {
+      "train": 799272,
+      "val": 100101,
+      "test": 100556
+    }
+  },
+  "tiers": {
+    "easy": 364364,
+    "hard": 378484,
+    "medium": 257081
+  },
+  "split_tiers": {
+    "train": {
+      "easy": 291283,
+      "hard": 302519,
+      "medium": 205470
+    },
+    "val": {
+      "easy": 36471,
+      "hard": 37905,
+      "medium": 25725
+    },
+    "test": {
+      "easy": 36610,
+      "hard": 38060,
+      "medium": 25886
+    }
+  },
+  "format": "parquet",
+  "files": [
+    {
+      "path": "train.parquet",
+      "split": "train",
+      "records": 799272,
+      "bytes": 50073917,
+      "sha256": "46c3c73650c15f093fe3ea2f5261b629f7fd5f47250cb95af90a54e1da533a37"
+    },
+    {
+      "path": "val.parquet",
+      "split": "val",
+      "records": 100101,
+      "bytes": 6304767,
+      "sha256": "03c088d07831664f9e84d421cb6d791916774edf54326d6937444e127ed7255c"
+    },
+    {
+      "path": "test.parquet",
+      "split": "test",
+      "records": 100556,
+      "bytes": 6338925,
+      "sha256": "5de2b3f6a69ccf8a573a0efed5f5226d32acb682822bd513181b6bd28dac79cd"
+    }
+  ],
+  "tool_version": "water_sort_cli 0.1.0+a61b1da8fb64",
+  "created_at": "2026-10-03T09:56:56.568667000Z",
+  "started_at": "2026-10-03T09:56:56.568714776Z",
+  "finished_at": "2026-10-03T10:08:04.334622427Z",
+  "wall_time_secs": 667.76591944,
+  "threads": 4
+}

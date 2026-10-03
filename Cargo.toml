@@ -31,6 +31,10 @@ criterion = { version = "0.8", default-features = false, features = ["cargo_benc
 proptest = "1"
 rustc-hash = "2"
 statrs = { version = "0.19", default-features = false, features = ["std"] }
+arrow-array = { version = "60", default-features = false }
+arrow-schema = { version = "60", default-features = false }
+parquet = { version = "60", default-features = false, features = ["arrow", "zstd"] }
+sha2 = "0.11"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

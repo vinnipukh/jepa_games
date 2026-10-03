@@ -1,0 +1,117 @@
+{
+  "format_version": 1,
+  "generator": {
+    "id": "turan",
+    "version": 1,
+    "variant": "pour_walk(steps=160,layout=distributed)",
+    "layout": "distributed",
+    "spec": "turan:walk:160:distributed"
+  },
+  "params": {
+    "n_colors": 4,
+    "capacity": 3,
+    "n_empty": 1
+  },
+  "gen_config": {
+    "min_opt": 1,
+    "max_attempts": 10000,
+    "max_states": 5000000,
+    "metrics": {
+      "random_rollouts": 64,
+      "rollout_cap_factor": 4,
+      "dead_end_ratios": false
+    }
+  },
+  "gen_config_json": "{\"min_opt\":1,\"max_attempts\":10000,\"max_states\":5000000,\"metrics\":{\"random_rollouts\":64,\"rollout_cap_factor\":4,\"dead_end_ratios\":false}}",
+  "supported": true,
+  "master_seed": "00005eed20261003",
+  "master_seed_source": "given",
+  "seed_rule": "seed_i = splitmix64(master_seed ^ i)",
+  "count": 120,
+  "records": 119,
+  "failures": [],
+  "dedup": {
+    "duplicates": 1,
+    "duplicate_rate": 0.008333333333333333,
+    "hash_collisions": 0,
+    "dropped_file": "duplicates.csv",
+    "saturation": [
+      [
+        10,
+        0
+      ],
+      [
+        100,
+        1
+      ],
+      [
+        120,
+        1
+      ]
+    ]
+  },
+  "split": {
+    "rule": "canonical_hash % 100",
+    "ranges": {
+      "train_end": 80,
+      "val_end": 90
+    },
+    "buckets": {
+      "train": [
+        0,
+        80
+      ],
+      "val": [
+        80,
+        90
+      ],
+      "test": [
+        90,
+        100
+      ]
+    },
+    "counts": {
+      "train": 101,
+      "val": 10,
+      "test": 8
+    }
+  },
+  "tiers": {
+    "easy": 42,
+    "hard": 51,
+    "medium": 26
+  },
+  "split_tiers": {
+    "train": {
+      "easy": 34,
+      "hard": 45,
+      "medium": 22
+    },
+    "val": {
+      "easy": 6,
+      "hard": 2,
+      "medium": 2
+    },
+    "test": {
+      "easy": 2,
+      "hard": 4,
+      "medium": 2
+    }
+  },
+  "format": "jsonl",
+  "files": [
+    {
+      "path": "puzzles.jsonl",
+      "split": null,
+      "records": 119,
+      "bytes": 107145,
+      "sha256": "f9c90fdecb08bce97bb707a75ca74fb03a7fe608a0e9cd74501145d34bb0db74"
+    }
+  ],
+  "tool_version": "fixture",
+  "created_at": "2026-10-03T00:00:00.000000000Z",
+  "started_at": "2026-10-03T09:41:21.770554801Z",
+  "finished_at": "2026-10-03T09:41:22.536765594Z",
+  "wall_time_secs": 0.766242821,
+  "threads": 2
+}

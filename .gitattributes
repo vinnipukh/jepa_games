@@ -2,3 +2,4 @@
 *.parquet binary
 *.npz binary
 water_sort_core/tests/golden/*.json text eol=lf
+water_sort_cli/tests/fixtures/** -text
