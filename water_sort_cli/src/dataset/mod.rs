@@ -8,3 +8,4 @@ pub mod time;
 
 pub use record::{Record, RecordMetrics, RunInfo};
 pub use split::{Split, SplitRanges};
+pub mod parquet;
