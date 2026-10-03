@@ -573,6 +573,12 @@ pub const fn splitmix64(x: u64) -> u64 {
     core::splitmix64(x)
 }
 
+/// The Turan seed rule `splitmix64(now_nanos ^ splitmix64(counter))` (D1).
+#[pyfunction]
+pub const fn time_seed(now_nanos: u64, counter: u64) -> u64 {
+    core::time_seed(now_nanos, counter)
+}
+
 /// A generated puzzle and everything recorded about it (the Phase 4 record fields).
 #[pyclass(
     name = "Puzzle",

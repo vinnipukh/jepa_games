@@ -35,6 +35,7 @@ from jepa_water_sort._native import (
     stars,
     step,
     tier,
+    time_seed,
     variant,
 )
 from jepa_water_sort.env import WaterSortEnv, decode_observation, encode_observation
@@ -77,5 +78,6 @@ __all__ = [
     "stars",
     "step",
     "tier",
+    "time_seed",
     "variant",
 ]

@@ -45,6 +45,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(types::canonical, m)?)?;
     m.add_function(wrap_pyfunction!(types::tier, m)?)?;
     m.add_function(wrap_pyfunction!(types::splitmix64, m)?)?;
+    m.add_function(wrap_pyfunction!(types::time_seed, m)?)?;
     m.add_function(wrap_pyfunction!(generate::generate, m)?)?;
     m.add_function(wrap_pyfunction!(generate::variant, m)?)?;
     m.add_function(wrap_pyfunction!(generate::fresh_seed, m)?)?;
