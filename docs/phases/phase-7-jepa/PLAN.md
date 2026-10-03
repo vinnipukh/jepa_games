@@ -63,12 +63,14 @@ python/jepa/          # separate package from the binding; depends on jepa_water
 
 ## Tasks
 
-1. [ ] Data loader + small trajectory dataset (optimal + random + ε = 0.2)
-2. [ ] Encoder / predictor / EMA, single-step loss; monitoring
-3. [ ] IDM + probe + solved head; collapse ablations
-4. [ ] Baselines (random, greedy, solver), then DQN/DDQN
-5. [ ] Planning (beam first, then MCTS / CEM)
-6. [ ] Evaluation matrix + report
+Implemented (2026-10-03) in `python/jepa`; details and deviations in D21 (`decisions.md`): exact distance-to-go labels and a value head, a legality head, a consistent beam with a revisit check, the pipeline `python -m jepa.pipeline` / `scripts/train-jepa.sh`. The full training run (GPU, the user's machine) produces `reports/jepa_eval.md`, which decides the acceptance items below.
+
+1. [x] Data loader + small trajectory dataset (optimal + random + ε = 0.2)
+2. [x] Encoder / predictor / EMA, single-step loss; monitoring
+3. [x] IDM + probe + solved head; collapse ablations
+4. [x] Baselines (random, greedy, solver), then DQN/DDQN
+5. [x] Planning (beam first, then MCTS / CEM)
+6. [x] Evaluation matrix + report
 
 ## Acceptance (proposed; the roadmap defines none for this phase)
 

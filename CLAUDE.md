@@ -1,6 +1,6 @@
 # jepa_games — agent guide
 
-Water Sort puzzle game with two puzzle generators, plus the infrastructure to train a JEPA world model on it. Rust workspace (game core, generators, CLI, PyO3 binding, wasm-bindgen binding) plus the `jepa_water_sort` Python package (Gymnasium env, vector env, trajectory logger) and the browser game (`web/`, Vite + TypeScript on WASM); the JEPA itself comes in Phase 7.
+Water Sort puzzle game with two puzzle generators, plus the infrastructure to train a JEPA world model on it. Rust workspace (game core, generators, CLI, PyO3 binding, wasm-bindgen binding) plus the `jepa_water_sort` Python package (Gymnasium env, vector env, trajectory logger), the browser game (`web/`, Vite + TypeScript on WASM) and the `jepa` package (Phase 7: world model, latent planners, baselines, evaluation pipeline; PyTorch).
 
 ## Where things are
 
@@ -11,7 +11,7 @@ Water Sort puzzle game with two puzzle generators, plus the infrastructure to tr
 - `docs/HANDOFF.md`: how to continue development (cloud sessions).
 - `docs/datasets.md`: how to generate datasets, including harder ones.
 - `reports/`: committed measurement reports (`water_sort_cli stats` / `compare` output).
-- Crates: `water_sort_core` (all game rules, solver, canonical hash, stars, sampling, `Generator` trait), `uniform_water_sort`, `turan_water_sort`, `water_sort_cli` (binary + library: `args`, `dataset` = Phase 4 record schema, Parquet/JSONL, generate, dedup, split, leakage, validate; D17), `python/` (PyO3 crate + `jepa_water_sort` package: binding, `WaterSortEnv`, `WaterSortVectorEnv`, policies, dataset reader, trajectory logger; D19), `web/` (`water_sort_web` wasm-bindgen crate + `web/app` Vite/TypeScript game: worker generation, completion screen, share URLs, human trajectory export; D20).
+- Crates: `water_sort_core` (all game rules, solver, canonical hash, stars, sampling, `Generator` trait), `uniform_water_sort`, `turan_water_sort`, `water_sort_cli` (binary + library: `args`, `dataset` = Phase 4 record schema, Parquet/JSONL, generate, dedup, split, leakage, validate; D17), `python/` (PyO3 crate + `jepa_water_sort` package: binding, `WaterSortEnv`, `WaterSortVectorEnv`, policies, dataset reader, trajectory logger; D19), `web/` (`water_sort_web` wasm-bindgen crate + `web/app` Vite/TypeScript game: worker generation, completion screen, share URLs, human trajectory export; D20), `python/jepa/` (data, models, train, monitor, plan, baselines, dqn, eval, report, pipeline; D21).
 
 ## Commands
 
@@ -31,6 +31,9 @@ uv pip install maturin -r pyproject.toml --extra test
 uv run --no-project maturin develop --release --locked     # rebuild after every Rust change
 uv run --no-project python -m pytest
 uv run --no-project python -m jepa_water_sort.logger collect --help   # trajectories
+uv pip install -r pyproject.toml --extra jepa --torch-backend auto    # torch for the jepa package
+uv run --no-project python -m jepa.pipeline --preset smoke --out /tmp/smoke   # whole Phase 7 pipeline, CPU, minutes
+scripts/train-jepa.sh                                      # full Phase 7 run on a GPU machine -> reports/jepa_eval.md
 
 # Web (scripts/setup-cloud.sh --web installs the wasm32 target, wasm-bindgen-cli, npm packages)
 cargo clippy -p water_sort_web --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
