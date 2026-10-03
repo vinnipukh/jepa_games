@@ -1,6 +1,5 @@
 //! `water_sort_cli`: batch generation, validation and statistics commands.
 
-mod args;
 mod compare;
 mod stats;
 mod sweep;
@@ -8,6 +7,7 @@ mod sweep;
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
+use water_sort_cli::args;
 
 #[derive(Parser)]
 #[command(version, about = "Water Sort puzzle generation tools")]
