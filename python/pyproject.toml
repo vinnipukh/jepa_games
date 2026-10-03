@@ -1,0 +1,32 @@
+[build-system]
+requires = ["maturin>=1.9,<2"]
+build-backend = "maturin"
+
+[project]
+name = "jepa_water_sort"
+description = "Water Sort puzzles (Rust core via PyO3), a Gymnasium environment and a trajectory logger"
+requires-python = ">=3.10"
+license = "MIT OR Apache-2.0"
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+]
+dependencies = [
+    "numpy>=1.26",
+    "gymnasium>=1.0",
+    "pyarrow>=15",
+]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+
+[tool.maturin]
+module-name = "jepa_water_sort._native"
+python-source = "."
+python-packages = ["jepa_water_sort"]
+features = []
+locked = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -5,6 +5,7 @@ members = [
     "uniform_water_sort",
     "turan_water_sort",
     "water_sort_cli",
+    "python",
 ]
 
 [workspace.package]
