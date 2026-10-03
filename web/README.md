@@ -35,20 +35,18 @@ checklist is in `docs/phases/phase-6-web/PLAN.md`.
 - `?gen=turan&seed=<hex>&c=6&k=4&e=2&strategy=scramble&steps=40` (`reverse_search`,
   `scramble`, `constrained`, `pour_walk` (distributed only))
 
-## Hosting (not active yet)
+## Hosting
 
-`.github/workflows/pages.yml` builds the static site and can deploy it to GitHub Pages. It only
-runs when started by hand (Actions → "Web game (Pages)" → Run workflow):
-
-- without "deploy", it only builds; download the `web-game` artifact (14 days) and serve it
-  from any static host;
-- with "deploy", it also publishes to Pages. Enable Pages first (Settings → Pages → Source:
-  GitHub Actions); on a private repo this may need a paid plan.
+The game is live at https://vinnipukh.github.io/jepa_games/. `.github/workflows/pages.yml`
+redeploys it on every push to `main` that touches the game (the core and generator crates,
+`web/`, `Cargo.toml` / `Cargo.lock`, the toolchain pin or the workflow). It can also be run by
+hand (Actions → "Web game (Pages)" → Run workflow); without "deploy" it only builds the
+`web-game` artifact.
 
 The site is plain static files with relative paths (`web/app/dist` after `npm run build`), so it
-works from any sub-path such as `https://<user>.github.io/jepa_games/`. It needs an HTTP server:
-browsers refuse module workers and wasm from `file://`, so opening `index.html` from disk does not
-work (`npm run preview` or `python -m http.server` in `dist` does).
+works from any sub-path and any static host. It needs an HTTP server: browsers refuse module
+workers and wasm from `file://`, so opening `index.html` from disk does not work
+(`npm run preview` or `python -m http.server` in `dist` does).
 
 ## Trajectory export
 

@@ -265,7 +265,7 @@ Recorded while implementing the Python binding, `WaterSortEnv`, the native vecto
 - **Measured** (4-core cloud VM, 6 × 4 × 2 uniform): native vector env 31k steps/s at 64 envs and 71k at 1024 vs 15k / 18k for `SyncVectorEnv` (random legal actions; puzzle generation on autoreset dominates). Trajectory collection on 5000 train puzzles, single thread: optimal 65k transitions/s, ε = 0.1 18k/s (re-solving after deviations), random 85k/s, greedy 39k/s; about 15 bytes per transition in zstd Parquet. Within `4 · opt_moves`, random play solved 75 % of the puzzles and greedy 76 %.
 - **Decided (2026-10-03, user):** all of the above accepted as proposed, including the 100 000-state dead-end budget and the provisional `human` import format (Phase 6 may adjust it). D4 (`k = 4`) stays proposed until the RL baseline (Phase 7).
 
-## D20 — Phase 6 implementation refinements — proposed (2026-10-03)
+## D20 — Phase 6 implementation refinements — decided (2026-10-03)
 
 Recorded while implementing the `water_sort_web` crate (wasm-bindgen), the Vite + TypeScript game in `web/app` and the human trajectory export. None of this changes what a generator produces; every golden file is unchanged and is now also checked on wasm32.
 
@@ -282,3 +282,4 @@ Recorded while implementing the `water_sort_web` crate (wasm-bindgen), the Vite 
 - **Hosting:** GitHub Pages is not set up (user, 2026-10-03: later). `.github/workflows/pages.yml` is ready but manual only (`workflow_dispatch`): it builds `web/app/dist`, keeps it as the `web-game` artifact, and deploys to Pages only when run with `deploy` after Pages is enabled. `vite build` uses relative asset paths, so the site works from any sub-path (checked under `/jepa_games/`).
 - **Branch.** The cloud session was bound to branch `ccr-9eabdd07-gdj3xu`, so Phase 6 was developed there instead of `phase-6-web`.
 - **Measured:** wasm module 432 kB (145 kB gzip), app JS 22 kB. Manual spot check: eight seeds / codes across both generators, all strategies and both layouts gave identical puzzle codes on the web and in Python (`docs/phases/phase-6-web/PLAN.md`, manual checklist).
+- **Decided (2026-10-03, user):** all of the above accepted as proposed (difficulty tiers for uniform only, the web `GenConfig`, the 60 s UI guard, the export format and the import episode rule). Since then the repo is public and the game is deployed to GitHub Pages on every push to `main` that touches it (`.github/workflows/pages.yml`); license MIT only.
