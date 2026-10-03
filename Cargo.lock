@@ -588,8 +588,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "300e883d756b2e4ec94e02791f39b04b522276138852cfc41d9fb7e904106099"
 dependencies = [
  "cfg-if",
+ "js-sys",
  "libc",
  "r-efi 6.0.0",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -1626,6 +1628,20 @@ dependencies = [
  "serde_json",
  "thiserror",
  "xxhash-rust",
+]
+
+[[package]]
+name = "water_sort_web"
+version = "0.1.0"
+dependencies = [
+ "getrandom 0.4.3",
+ "js-sys",
+ "serde",
+ "serde_json",
+ "turan_water_sort",
+ "uniform_water_sort",
+ "wasm-bindgen",
+ "water_sort_core",
 ]
 
 [[package]]
