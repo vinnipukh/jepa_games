@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "description": "Water Sort browser game on the Rust core compiled to WASM",
+  "license": "MIT OR Apache-2.0",
   "type": "module",
   "scripts": {
     "wasm": "../build.sh",
