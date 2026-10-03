@@ -56,6 +56,9 @@ pub struct GenerateOptions {
     /// `given` or `fresh`.
     pub master_seed_source: String,
     pub split: SplitRanges,
+    /// One file per split (`train.parquet`, ...) instead of one `puzzles.parquet`. Every record
+    /// keeps its `split` column either way.
+    pub split_files: bool,
     pub format: Format,
     /// The `created_at` of every record (Unix nanoseconds, a whole number of microseconds, the
     /// Parquet resolution): one clock reading per run, or pinned by the caller.
@@ -167,13 +170,26 @@ fn tier_name(record: &Record) -> String {
 
 impl Writer {
     fn create(dir: &Path, opts: &GenerateOptions) -> io::Result<Self> {
-        let name = format!("puzzles.{}", opts.format.extension());
-        let files = vec![OutFile {
-            sink: Sink::create(&dir.join(&name), opts.format, opts.params)?,
-            name,
-            split: None,
-            records: 0,
-        }];
+        let ext = opts.format.extension();
+        let names: Vec<(String, Option<Split>)> = if opts.split_files {
+            Split::ALL
+                .iter()
+                .map(|&s| (format!("{s}.{ext}"), Some(s)))
+                .collect()
+        } else {
+            vec![(format!("puzzles.{ext}"), None)]
+        };
+        let files = names
+            .into_iter()
+            .map(|(name, split)| {
+                Ok(OutFile {
+                    sink: Sink::create(&dir.join(&name), opts.format, opts.params)?,
+                    name,
+                    split,
+                    records: 0,
+                })
+            })
+            .collect::<io::Result<_>>()?;
         let mut dropped = BufWriter::new(File::create(dir.join(DROPPED_FILE))?);
         writeln!(dropped, "dropped_id,kept_id,canonical_hash")?;
         Ok(Self {
@@ -219,7 +235,11 @@ impl Writer {
             .entry(tier.clone())
             .or_default() += 1;
         *self.tiers.entry(tier).or_default() += 1;
-        let file = &mut self.files[0];
+        let file = self
+            .files
+            .iter_mut()
+            .find(|f| f.split.is_none_or(|s| s == record.split))
+            .expect("a file for every split");
         file.records += 1;
         file.sink.write(record)
     }
@@ -414,6 +434,7 @@ pub(crate) mod tests {
             master_seed: 0x1234_5678_9abc_def0,
             master_seed_source: "given".into(),
             split: SplitRanges::DEFAULT,
+            split_files: false,
             format,
             created_at: 1_791_030_896_000_000_000,
             tool_version: "test".into(),
@@ -499,6 +520,48 @@ pub(crate) mod tests {
         let scan = crate::dataset::dedup::scan_stored(&dir, &m).unwrap();
         assert_eq!((scan.counts.seen, scan.counts.duplicates), (m.records, 0));
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn split_files_hold_their_split() {
+        let opts = GenerateOptions {
+            split_files: true,
+            split: "60,20,20".parse().unwrap(),
+            ..options(120, Format::Parquet, 2)
+        };
+        let dir = temp_dir("gen_split");
+        let m = generate(&dir, &opts).unwrap();
+        let names: Vec<&str> = m.files.iter().map(|f| f.path.as_str()).collect();
+        assert_eq!(names, ["train.parquet", "val.parquet", "test.parquet"]);
+        let mut seen = 0;
+        crate::dataset::visit_records(&dir, &m, |entry, batch| {
+            for r in &batch {
+                assert_eq!(Some(r.split), entry.split);
+                assert_eq!(r.split, opts.split.of(r.canonical_hash));
+            }
+            seen += batch.len() as u64;
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(seen, m.records);
+        for s in Split::ALL {
+            let file = m.files.iter().find(|f| f.split == Some(s)).unwrap();
+            assert_eq!(Some(&file.records), m.split.counts.get(&s));
+            assert!(file.records > 0);
+        }
+        // The same records as a single file, in the same split proportions.
+        let single_dir = temp_dir("gen_split_single");
+        let single = generate(
+            &single_dir,
+            &GenerateOptions {
+                split_files: false,
+                ..opts.clone()
+            },
+        )
+        .unwrap();
+        assert_eq!(single.split.counts, m.split.counts);
+        std::fs::remove_dir_all(&dir).unwrap();
+        std::fs::remove_dir_all(&single_dir).unwrap();
     }
 
     #[test]

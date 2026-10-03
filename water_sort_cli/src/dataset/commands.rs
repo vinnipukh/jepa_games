@@ -15,6 +15,7 @@ use crate::args::{GenArgs, parse_count};
 
 /// `generate`: one generator, one configuration, `count` puzzles.
 #[derive(Args, Debug, Clone)]
+#[allow(clippy::struct_excessive_bools)] // independent command-line switches
 pub struct GenerateArgs {
     #[command(flatten)]
     pub generator: GenArgs,
@@ -59,6 +60,10 @@ pub struct GenerateArgs {
     /// Split percentages `train,val,test` by `canonical_hash % 100`.
     #[arg(long, default_value = "80,10,10")]
     pub split: SplitRanges,
+    /// Write one file per split (`train.parquet`, `val.parquet`, `test.parquet`) instead of
+    /// one `puzzles.parquet`.
+    #[arg(long)]
+    pub split_files: bool,
     /// Pin every record's `created_at` (RFC 3339, e.g. `2026-10-03T00:00:00Z`) instead of the
     /// run's start time, so two runs are byte-identical.
     #[arg(long, value_parser = parse_rfc3339)]
@@ -150,6 +155,7 @@ impl GenerateArgs {
             master_seed,
             master_seed_source: source.into(),
             split: self.split,
+            split_files: self.split_files,
             format: self.format,
             // Whole microseconds, the Parquet timestamp resolution.
             created_at: {
