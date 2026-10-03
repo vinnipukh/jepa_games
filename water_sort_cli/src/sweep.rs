@@ -1,9 +1,11 @@
-//! `water_sort_cli sweep`: Turan scramble `steps` sweep per layout (Phase 3 task 9).
+//! `water_sort_cli sweep`: Turan `steps` sweep per layout (Phase 3 task 9, D16).
 //!
 //! For each `(layout, params, steps)`: the generation measurements (`opt_moves`, attempts,
-//! rejections, timing) over `samples` puzzles, plus the cost of the construction itself over
-//! `samples` scramble candidates: how often the walk is absorbed in a state without reverse
-//! moves, how often the standard layout is not reached, and the extra-step distribution.
+//! rejections, timing) over `samples` puzzles. For the scramble, also the cost of the
+//! construction itself over `samples` scramble candidates: how often the walk is absorbed in a
+//! state without reverse moves, how often the standard layout is not reached, and the extra-step
+//! distribution. `--strategy pour-walk` sweeps the walk's steps; `--strategy reverse-search`
+//! sweeps the search's state budget (`--steps` values are then budgets).
 
 use std::fmt::Write as _;
 use std::path::PathBuf;
@@ -12,15 +14,20 @@ use clap::Args;
 use rand_chacha::ChaCha20Rng;
 use rand_core::SeedableRng;
 use turan_water_sort::{Turan, TuranStrategy, scramble};
-use water_sort_core::{GenConfig, Layout, MetricsConfig, Params, SUPPORTED, splitmix64};
+use water_sort_core::{
+    GenConfig, Layout, MetricsConfig, Params, SUPPORTED, splitmix64, supported_rows,
+};
 
-use crate::args::LayoutArg;
+use crate::args::{LayoutArg, StrategyArg};
 use crate::compare::ParamsArg;
 use crate::stats::{Cell, Sampling, collect_samples, summarize};
 
 #[derive(Args, Debug, Clone)]
 pub struct SweepArgs {
-    /// Values of `steps`.
+    /// Turan strategy: `scramble` (default), `pour-walk` (distributed only) or `reverse-search`.
+    #[arg(long, value_enum, default_value = "scramble")]
+    pub strategy: StrategyArg,
+    /// Values of `steps` (reverse search: of its state budget).
     #[arg(long, value_delimiter = ',', default_value = "10,20,40,80,160")]
     pub steps: Vec<u32>,
     #[arg(
@@ -43,20 +50,58 @@ pub struct SweepArgs {
     pub rollouts: u32,
     #[arg(long, default_value_t = 0)]
     pub base_seed: u64,
-    /// Output path without extension; writes `<out>.csv` and `<out>.md`.
-    #[arg(long, default_value = "reports/turan_steps_sweep")]
-    pub out: PathBuf,
+    /// Reverse search: path depth limit.
+    #[arg(long, default_value_t = TuranStrategy::DEFAULT_SEARCH_DEPTH)]
+    pub search_depth: u32,
+    /// Output path without extension; writes `<out>.csv` and `<out>.md`. Default:
+    /// `reports/turan_steps_sweep` (scramble), `reports/turan_pour_walk_steps_sweep`,
+    /// `reports/turan_reverse_search_budget_sweep`.
+    #[arg(long)]
+    pub out: Option<PathBuf>,
     #[arg(long)]
     pub threads: Option<usize>,
 }
 
 impl SweepArgs {
-    fn configs(&self) -> Vec<Params> {
+    fn out_path(&self) -> PathBuf {
+        self.out.clone().unwrap_or_else(|| {
+            PathBuf::from(match self.strategy {
+                StrategyArg::PourWalk => "reports/turan_pour_walk_steps_sweep",
+                StrategyArg::ReverseSearch => "reports/turan_reverse_search_budget_sweep",
+                _ => "reports/turan_steps_sweep",
+            })
+        })
+    }
+
+    /// The strategy for one swept value.
+    fn strategy(&self, steps: u32) -> Result<TuranStrategy, String> {
+        match self.strategy {
+            StrategyArg::Scramble => Ok(TuranStrategy::Scramble {
+                steps,
+                max_extra_steps: self.max_extra_steps,
+            }),
+            StrategyArg::PourWalk => Ok(TuranStrategy::PourWalk { steps }),
+            StrategyArg::ReverseSearch => Ok(TuranStrategy::ReverseSearch {
+                max_depth: self.search_depth,
+                max_states: steps,
+            }),
+            StrategyArg::Constrained => Err("constrained has no steps to sweep".into()),
+        }
+    }
+
+    /// The configurations for `layout`: `--configs`, else every supported one. The scramble
+    /// sweep uses the standard table for both layouts (as in the committed Phase 3 report); the
+    /// other strategies use the layout's own table (D3 and its distributed addendum).
+    fn configs(&self, layout: Layout) -> Vec<Params> {
         if !self.configs.is_empty() {
             return self.configs.iter().map(|c| c.0).collect();
         }
-        SUPPORTED
-            .iter()
+        let rows = if self.strategy == StrategyArg::Scramble {
+            SUPPORTED
+        } else {
+            supported_rows(layout)
+        };
+        rows.iter()
             .flat_map(|r| {
                 (r.min_colors..=r.max_colors).map(move |n_colors| Params {
                     n_colors,
@@ -91,6 +136,9 @@ pub struct WalkStats {
 }
 
 fn walk_stats(params: Params, steps: u32, args: &SweepArgs, layout: Layout) -> WalkStats {
+    if args.strategy != StrategyArg::Scramble {
+        return WalkStats::default();
+    }
     let mut out = WalkStats {
         candidates: args.samples,
         ..WalkStats::default()
@@ -147,18 +195,22 @@ pub fn run(args: &SweepArgs) -> Result<(), Box<dyn std::error::Error>> {
         base_seed: args.base_seed,
         cell_budget_secs: 900,
     };
+    // Fail on an unsweepable strategy before any work.
+    args.strategy(0)?;
+    if args.strategy == StrategyArg::PourWalk
+        && args
+            .layouts
+            .iter()
+            .any(|&l| Layout::from(l) != Layout::Distributed)
+    {
+        return Err("pour-walk is distributed only: pass --layouts distributed".into());
+    }
     let mut rows = Vec::new();
     for &layout in &args.layouts {
         let layout = Layout::from(layout);
-        for params in args.configs() {
+        for params in args.configs(layout) {
             for &steps in &args.steps {
-                let g = Turan::new(
-                    TuranStrategy::Scramble {
-                        steps,
-                        max_extra_steps: args.max_extra_steps,
-                    },
-                    layout,
-                );
+                let g = Turan::new(args.strategy(steps)?, layout);
                 let run = collect_samples(&g, params, &cfg, &sampling, &pool);
                 let cell = summarize(params, run.status, cfg.max_attempts, &run.samples, run.wall);
                 let walk = walk_stats(params, steps, args, layout);
@@ -185,11 +237,12 @@ pub fn run(args: &SweepArgs) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn write(args: &SweepArgs, threads: usize, rows: &[Row]) -> std::io::Result<()> {
-    if let Some(dir) = args.out.parent().filter(|d| !d.as_os_str().is_empty()) {
+    let out = args.out_path();
+    if let Some(dir) = out.parent().filter(|d| !d.as_os_str().is_empty()) {
         std::fs::create_dir_all(dir)?;
     }
     let with = |ext: &str| {
-        let mut s = args.out.clone().into_os_string();
+        let mut s = out.clone().into_os_string();
         s.push(".");
         s.push(ext);
         PathBuf::from(s)
@@ -259,6 +312,31 @@ fn proposed_steps<'a>(rows: impl Iterator<Item = &'a Row> + Clone) -> Option<u32
         .min()
 }
 
+/// Uniform's mean `opt_moves` for `(layout, params)` from the committed stats reports.
+fn uniform_opt_mean(layout: Layout, params: Params) -> Option<f64> {
+    let csv = match layout {
+        Layout::Standard => include_str!("../../reports/uniform_stats.csv"),
+        Layout::Distributed => include_str!("../../reports/uniform_distributed_stats.csv"),
+    };
+    let mut lines = csv.lines();
+    let header: Vec<&str> = lines.next()?.split(',').collect();
+    let col = |name: &str| header.iter().position(|h| *h == name);
+    let (c, k, e, m) = (
+        col("n_colors")?,
+        col("capacity")?,
+        col("n_empty")?,
+        col("opt_mean")?,
+    );
+    lines
+        .map(|l| l.split(',').collect::<Vec<_>>())
+        .find(|f| {
+            f[c].parse() == Ok(params.n_colors)
+                && f[k].parse() == Ok(params.capacity)
+                && f[e].parse() == Ok(params.n_empty)
+        })
+        .and_then(|f| f[m].parse().ok())
+}
+
 #[allow(clippy::cast_precision_loss)]
 fn pct(count: u32, total: u32) -> String {
     if total == 0 {
@@ -268,12 +346,35 @@ fn pct(count: u32, total: u32) -> String {
     }
 }
 
-fn markdown(args: &SweepArgs, threads: usize, rows: &[Row]) -> String {
-    let mut md = String::from("# Turan scramble `steps` sweep\n\n");
+fn intro(args: &SweepArgs, threads: usize) -> String {
+    let scramble = args.strategy == StrategyArg::Scramble;
+    let mut md = String::from(match args.strategy {
+        StrategyArg::PourWalk => "# Turan pour walk `steps` sweep\n\n",
+        StrategyArg::ReverseSearch => "# Turan reverse search state-budget sweep\n\n",
+        _ => "# Turan scramble `steps` sweep\n\n",
+    });
     let steps: Vec<String> = args.steps.iter().map(u32::to_string).collect();
+    let strategy = match args.strategy {
+        StrategyArg::PourWalk => " --strategy pour-walk".to_string(),
+        StrategyArg::ReverseSearch => format!(
+            " --strategy reverse-search --search-depth {}",
+            args.search_depth
+        ),
+        _ => String::new(),
+    };
+    let layouts = if scramble {
+        String::new()
+    } else {
+        let names: Vec<String> = args
+            .layouts
+            .iter()
+            .map(|&l| Layout::from(l).to_string())
+            .collect();
+        format!(" --layouts {}", names.join(","))
+    };
     let _ = writeln!(
         md,
-        "Produced by `water_sort_cli sweep --steps {} --samples {} --max-extra-steps {} \
+        "Produced by `water_sort_cli sweep{strategy}{layouts} --steps {} --samples {} --max-extra-steps {} \
          --rollouts {} --base-seed {}` (release build, {threads} threads; default `GenConfig`: \
          `min_opt` 1, `max_attempts` 10000, `max_states` 5e6). Configurations: every supported \
          one (D3) unless `--configs` is given.\n",
@@ -283,6 +384,18 @@ fn markdown(args: &SweepArgs, threads: usize, rows: &[Row]) -> String {
         args.rollouts,
         args.base_seed,
     );
+    if args.strategy == StrategyArg::ReverseSearch {
+        md.push_str(
+            "`steps` is the search's distinct-state budget (`max_states`). `constr. %` is the \
+             share of attempts where no visited state scored above 0 (D16). Walk columns do not \
+             apply.\n\n",
+        );
+    } else if args.strategy == StrategyArg::PourWalk {
+        md.push_str(
+            "Every endpoint goes to the solver: unsolvable and already-solved endpoints are \
+             rejected (`unsolv. %`, `solved/min %`). Walk columns do not apply.\n\n",
+        );
+    }
     md.push_str(
         "Generation columns are over the generated puzzles: `constr. %` is the share of attempts \
          rejected by the construction before solving (standard layout: the walk did not return; \
@@ -292,13 +405,34 @@ fn markdown(args: &SweepArgs, threads: usize, rows: &[Row]) -> String {
          to), `no return %` the share that did not reach the standard layout, and `extra` the \
          extra steps of those that did (p50 / p99 / max).\n\n",
     );
-    md.push_str("## Proposed default `steps` (D15, proposed)\n\n");
-    md.push_str(
-        "Smallest swept value whose mean `opt_moves` is within 2 % of the largest mean over the \
-         sweep, among values meeting the D3 criterion.\n\n",
-    );
-    md.push_str("| layout | config | proposed steps | opt mean there | max opt mean |\n");
-    md.push_str("|---|---|---:|---:|---:|\n");
+    md
+}
+
+fn markdown(args: &SweepArgs, threads: usize, rows: &[Row]) -> String {
+    let scramble = args.strategy == StrategyArg::Scramble;
+    let mut md = intro(args, threads);
+    if scramble {
+        md.push_str("## Proposed default `steps` (D15, proposed)\n\n");
+        md.push_str(
+            "Smallest swept value whose mean `opt_moves` is within 2 % of the largest mean over \
+             the sweep, among values meeting the D3 criterion.\n\n",
+        );
+        md.push_str("| layout | config | proposed steps | opt mean there | max opt mean |\n");
+        md.push_str("|---|---|---:|---:|---:|\n");
+    } else {
+        md.push_str("## Saturation and uniform's mean (D16)\n\n");
+        md.push_str(
+            "`saturates at`: smallest swept value whose mean `opt_moves` is within 2 % of the \
+             largest mean over the sweep, among values meeting the D3 criterion. `uniform` is \
+             uniform's mean `opt_moves` for the same layout from the committed stats report \
+             (`reports/uniform_stats.csv` / `reports/uniform_distributed_stats.csv`, other seeds \
+             and 1000 samples).\n\n",
+        );
+        md.push_str(
+            "| layout | config | saturates at | opt mean there | max opt mean | uniform | max / uniform |\n",
+        );
+        md.push_str("|---|---|---:|---:|---:|---:|---:|\n");
+    }
     let mut groups: Vec<(Layout, Params)> =
         rows.iter().map(|r| (r.layout, r.cell.params)).collect();
     groups.dedup();
@@ -314,7 +448,7 @@ fn markdown(args: &SweepArgs, threads: usize, rows: &[Row]) -> String {
         let at = proposed
             .and_then(|s| group.clone().find(|r| r.steps == s))
             .map_or(String::new(), |r| format!("{:.2}", r.cell.opt_mean));
-        let _ = writeln!(
+        let _ = write!(
             md,
             "| {layout} | {}x{}x{} | {} | {at} | {best:.2} |",
             params.n_colors,
@@ -322,6 +456,13 @@ fn markdown(args: &SweepArgs, threads: usize, rows: &[Row]) -> String {
             params.n_empty,
             proposed.map_or_else(|| "none".into(), |s| s.to_string()),
         );
+        if !scramble {
+            let _ = match uniform_opt_mean(*layout, *params) {
+                Some(u) => write!(md, " {u:.2} | {:.0} % |", 100.0 * best / u),
+                None => write!(md, " | |"),
+            };
+        }
+        md.push('\n');
     }
     md.push_str("\n## All cells\n\n");
     md.push_str(
@@ -345,7 +486,7 @@ fn markdown(args: &SweepArgs, threads: usize, rows: &[Row]) -> String {
             c.attempts_mean,
             c.attempts_p99,
             c.rate(j.construction) * 100.0,
-            c.rate(j.already_solved + j.below_min_opt) * 100.0,
+            c.rate(j.already_solved + j.below_min_opt + j.above_max_opt) * 100.0,
             c.opt_mean,
             c.opt_p50,
             c.opt_p99,
@@ -369,6 +510,8 @@ mod tests {
     fn small_sweep() {
         let dir = std::env::temp_dir().join(format!("wsc_sweep_{}", std::process::id()));
         let args = SweepArgs {
+            strategy: StrategyArg::Scramble,
+            search_depth: 300,
             steps: vec![5, 40],
             layouts: vec![LayoutArg::Standard, LayoutArg::Distributed],
             configs: vec!["4x3x2".parse().unwrap()],
@@ -376,7 +519,7 @@ mod tests {
             max_extra_steps: 100,
             rollouts: 0,
             base_seed: 3,
-            out: dir.join("sweep"),
+            out: Some(dir.join("sweep")),
             threads: Some(2),
         };
         run(&args).unwrap();
@@ -391,9 +534,52 @@ mod tests {
                 configs: vec![],
                 ..args
             }
-            .configs()
+            .configs(Layout::Distributed)
             .len(),
             54
         );
+    }
+
+    #[test]
+    fn walk_and_search_sweeps() {
+        let dir = std::env::temp_dir().join(format!("wsc_sweep2_{}", std::process::id()));
+        let base = SweepArgs {
+            strategy: StrategyArg::PourWalk,
+            search_depth: 300,
+            steps: vec![10, 80],
+            layouts: vec![LayoutArg::Distributed],
+            configs: vec!["4x4x2".parse().unwrap()],
+            samples: 20,
+            max_extra_steps: 100,
+            rollouts: 0,
+            base_seed: 3,
+            out: Some(dir.join("walk")),
+            threads: Some(2),
+        };
+        run(&base).unwrap();
+        let md = std::fs::read_to_string(dir.join("walk.md")).unwrap();
+        assert!(md.contains("--strategy pour-walk --layouts distributed"));
+        assert!(md.contains("| distributed | 4x4x2 |"));
+        assert!(
+            md.contains(" 10.6"),
+            "uniform's distributed 4x4x2 mean is listed"
+        );
+        let standard = SweepArgs {
+            layouts: vec![LayoutArg::Standard],
+            ..base.clone()
+        };
+        assert!(run(&standard).is_err());
+        let search = SweepArgs {
+            strategy: StrategyArg::ReverseSearch,
+            steps: vec![200],
+            layouts: vec![LayoutArg::Standard],
+            out: Some(dir.join("search")),
+            ..base
+        };
+        run(&search).unwrap();
+        let md = std::fs::read_to_string(dir.join("search.md")).unwrap();
+        assert!(md.contains("--strategy reverse-search --search-depth 300"));
+        assert!(md.contains("| standard | 4x4x2 | 200 |"));
+        std::fs::remove_dir_all(dir).unwrap();
     }
 }

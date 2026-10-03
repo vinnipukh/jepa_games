@@ -5,11 +5,17 @@
 //!   Solvable by construction, with longer same-color runs than a uniform fill.
 //! - [`TuranStrategy::Constrained`]: the uniform construction of the layout, rejecting any fill
 //!   with two vertically adjacent units of the same color.
+//! - [`TuranStrategy::PourWalk`] (distributed only): a random walk over pours *and* reverse pours,
+//!   so `steps` keeps mixing (D16).
+//! - [`TuranStrategy::ReverseSearch`]: a depth-first search over reverse pours that keeps the
+//!   best-scoring state, as the Sokoban generator of the I2A / Boxoban work does (D16).
 //!
 //! Both work in either [`Layout`] (D14). All game rules come from core: reverse moves
 //! ([`reverse_moves`], [`unapply`]), state construction, and validation through
 //! [`try_attempt_loop`]. `(params, seed, GenConfig, strategy, layout, VERSION)` fully determines
 //! the result; the strategy and layout are recorded in [`Generator::variant`].
+
+mod walks;
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -20,6 +26,8 @@ use water_sort_core::{
     Params, Rejection, ReverseMove, State, bounded_u32, fisher_yates, reverse_moves, time_seed,
     try_attempt_loop, unapply,
 };
+
+pub use walks::{SearchOutcome, pour_walk, reverse_search};
 
 /// How a Turan candidate is built.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -32,11 +40,36 @@ pub enum TuranStrategy {
     /// The uniform construction of the layout, rejecting (as [`Rejection::Construction`]) any
     /// fill with two vertically adjacent units of the same color.
     Constrained,
+    /// [`pour_walk`]: `steps` steps of a random walk over pours and reverse pours from the
+    /// solved state; unsolvable or solved endpoints are rejected by validation. Only
+    /// [`Layout::Distributed`] (D16): a random state rarely has standard heights, so a return
+    /// step would dominate the walk.
+    PourWalk { steps: u32 },
+    /// [`reverse_search`]: depth-first search over reverse pours from the solved state (paths of
+    /// at most `max_depth` reverse pours, at most `max_states` distinct states), keeping the
+    /// best-scoring state (I2A, D16). Solvable by construction.
+    ReverseSearch { max_depth: u32, max_states: u32 },
 }
 
 impl TuranStrategy {
     pub const DEFAULT_STEPS: u32 = 40;
     pub const DEFAULT_MAX_EXTRA_STEPS: u32 = 100;
+    /// [`TuranStrategy::PourWalk`] steps (proposed, D16).
+    pub const DEFAULT_WALK_STEPS: u32 = 160;
+    /// [`TuranStrategy::ReverseSearch`] path depth limit (I2A's value, D16).
+    pub const DEFAULT_SEARCH_DEPTH: u32 = 300;
+    /// [`TuranStrategy::ReverseSearch`] distinct-state budget (proposed, D16).
+    pub const DEFAULT_SEARCH_STATES: u32 = 10_000;
+
+    /// `PourWalk` with the default steps.
+    pub const DEFAULT_POUR_WALK: Self = Self::PourWalk {
+        steps: Self::DEFAULT_WALK_STEPS,
+    };
+    /// `ReverseSearch` with the default depth and state budget.
+    pub const DEFAULT_REVERSE_SEARCH: Self = Self::ReverseSearch {
+        max_depth: Self::DEFAULT_SEARCH_DEPTH,
+        max_states: Self::DEFAULT_SEARCH_STATES,
+    };
 
     /// `Scramble` with `steps` and the default `max_extra_steps`.
     pub const fn scramble(steps: u32) -> Self {
@@ -47,9 +80,10 @@ impl TuranStrategy {
     }
 }
 
+/// `ReverseSearch { 300, 10_000 }`, the I2A / Boxoban method (D16; was `Scramble` before).
 impl Default for TuranStrategy {
     fn default() -> Self {
-        Self::scramble(Self::DEFAULT_STEPS)
+        Self::DEFAULT_REVERSE_SEARCH
     }
 }
 
@@ -92,6 +126,18 @@ impl Generator for Turan {
                 format!("scramble(steps={steps},layout={layout})")
             }
             (TuranStrategy::Constrained, _) => format!("constrained(layout={layout})"),
+            (TuranStrategy::PourWalk { steps }, _) => {
+                format!("pour_walk(steps={steps},layout={layout})")
+            }
+            (
+                TuranStrategy::ReverseSearch {
+                    max_depth,
+                    max_states,
+                },
+                _,
+            ) => format!(
+                "reverse_search(max_depth={max_depth},max_states={max_states},layout={layout})"
+            ),
         }
     }
 
@@ -116,7 +162,10 @@ impl Generator for Turan {
         let params = *params;
         let mut observer = NeverUnsolvable {
             inner: observer,
-            check: matches!(self.strategy, TuranStrategy::Scramble { .. }),
+            check: matches!(
+                self.strategy,
+                TuranStrategy::Scramble { .. } | TuranStrategy::ReverseSearch { .. }
+            ),
         };
         let (state, attempts, accepted) = match self.strategy {
             TuranStrategy::Scramble {
@@ -132,6 +181,23 @@ impl Generator for Turan {
                     no_adjacent_same_color(&state).then_some(state)
                 })?
             }
+            TuranStrategy::PourWalk { steps } => {
+                if self.layout != Layout::Distributed {
+                    return Err(GenError::UnsupportedLayout {
+                        strategy: "pour_walk",
+                        layout: self.layout,
+                    });
+                }
+                try_attempt_loop(cfg, &mut observer, || {
+                    Some(pour_walk(&mut rng, params, steps))
+                })?
+            }
+            TuranStrategy::ReverseSearch {
+                max_depth,
+                max_states,
+            } => try_attempt_loop(cfg, &mut observer, || {
+                reverse_search(&mut rng, params, max_depth, max_states, self.layout).state
+            })?,
         };
         Ok(self.assemble::<ChaCha20Rng>(state, seed, attempts, accepted, cfg))
     }
@@ -256,7 +322,7 @@ impl Walk {
 }
 
 /// Exactly `n_colors` full tubes and `n_empty` empty ones, in any positions.
-fn has_standard_heights(s: &State) -> bool {
+pub(crate) fn has_standard_heights(s: &State) -> bool {
     let p = s.params();
     let full = (0..s.n_tubes()).filter(|&i| s.is_tube_full(i)).count();
     let empty = (0..s.n_tubes()).filter(|&i| s.is_tube_empty(i)).count();
@@ -265,7 +331,7 @@ fn has_standard_heights(s: &State) -> bool {
 
 /// Relabels colors and permutes tubes at random: symmetries of the game, not moves. For
 /// `Standard`, the empty tubes go last first and only the full tubes are permuted.
-fn shuffle_symmetries<R: Rng + ?Sized>(rng: &mut R, s: &State, layout: Layout) -> State {
+pub(crate) fn shuffle_symmetries<R: Rng + ?Sized>(rng: &mut R, s: &State, layout: Layout) -> State {
     let params = s.params();
     let mut labels: Vec<u8> = (0..params.n_colors).collect();
     fisher_yates(rng, &mut labels);
@@ -325,11 +391,22 @@ mod tests {
     fn all() -> Vec<Turan> {
         let mut out = Vec::new();
         for layout in Layout::ALL {
-            out.push(Turan::new(TuranStrategy::default(), layout));
+            out.push(Turan::new(
+                TuranStrategy::scramble(TuranStrategy::DEFAULT_STEPS),
+                layout,
+            ));
             out.push(Turan::new(TuranStrategy::Constrained, layout));
+            out.push(Turan::new(SEARCH, layout));
         }
+        out.push(Turan::new(WALK, Layout::Distributed));
         out
     }
+
+    const WALK: TuranStrategy = TuranStrategy::PourWalk { steps: 160 };
+    const SEARCH: TuranStrategy = TuranStrategy::ReverseSearch {
+        max_depth: 300,
+        max_states: 2000,
+    };
 
     #[test]
     fn identity() {
@@ -340,8 +417,11 @@ mod tests {
             [
                 "scramble(steps=40,max_extra_steps=100,layout=standard)",
                 "constrained(layout=standard)",
+                "reverse_search(max_depth=300,max_states=2000,layout=standard)",
                 "scramble(steps=40,layout=distributed)",
                 "constrained(layout=distributed)",
+                "reverse_search(max_depth=300,max_states=2000,layout=distributed)",
+                "pour_walk(steps=160,layout=distributed)",
             ]
         );
     }
@@ -363,7 +443,9 @@ mod tests {
                 let (g, counts) = t.generate_traced(&P, seed, &cfg).unwrap();
                 assert_eq!(g, t.generate(&P, seed, &cfg).unwrap());
                 assert_eq!(g.generator_variant, t.variant());
-                assert_eq!(counts.unsolvable, 0, "{t:?} seed {seed}");
+                if !matches!(t.strategy, TuranStrategy::PourWalk { .. }) {
+                    assert_eq!(counts.unsolvable, 0, "{t:?} seed {seed}");
+                }
                 assert_eq!(counts.total() + 1, g.attempts);
                 assert!(g.state.layout_matches(t.layout), "{t:?} seed {seed}");
                 assert!(replay(&g.state, &g.solution).unwrap().is_solved());
@@ -440,6 +522,59 @@ mod tests {
         assert_eq!(
             Turan::new(TuranStrategy::Constrained, Layout::Standard).generate(&one, 0, &short),
             Err(GenError::TooManyAttempts { attempts: 5 })
+        );
+    }
+
+    #[test]
+    fn pour_walk_is_distributed_only() {
+        let cfg = GenConfig::default();
+        assert_eq!(
+            Turan::new(WALK, Layout::Standard).generate(&P, 0, &cfg),
+            Err(GenError::UnsupportedLayout {
+                strategy: "pour_walk",
+                layout: Layout::Standard
+            })
+        );
+        // Zero steps: the solved state (relabeled, tubes permuted).
+        let mut rng = ChaCha20Rng::seed_from_u64(1);
+        assert!(pour_walk(&mut rng, P, 0).is_solved());
+    }
+
+    #[test]
+    fn pour_walk_keeps_mixing_past_the_scramble_limit() {
+        // The scramble saturates near 9 moves at 4x4x2 (D15); the pour walk gets past it.
+        let cfg = GenConfig::default();
+        let mean = |steps: u32| {
+            let t = Turan::new(TuranStrategy::PourWalk { steps }, Layout::Distributed);
+            let total: u32 = (0..30)
+                .map(|s| t.generate(&P, s, &cfg).unwrap().opt_moves)
+                .sum();
+            f64::from(total) / 30.0
+        };
+        let (short, long) = (mean(10), mean(160));
+        assert!(short < 7.5 && long > 9.5, "{short} {long}");
+    }
+
+    #[test]
+    fn reverse_search_keeps_the_best_scoring_state() {
+        let mut rng = ChaCha20Rng::seed_from_u64(3);
+        for layout in Layout::ALL {
+            for _ in 0..10 {
+                let out = reverse_search(&mut rng, P, 300, 500, layout);
+                assert!(out.visited <= 500);
+                let s = out.state.expect("something scores above 0");
+                assert!(out.score > 0 && out.depth > 0);
+                assert!(s.layout_matches(layout));
+                assert!((0..s.n_tubes()).all(|i| !(s.is_tube_full(i) && s.is_tube_uniform(i))));
+            }
+        }
+        // A budget of one state (the solved one) finds nothing: a construction rejection.
+        let none = reverse_search(&mut rng, P, 300, 1, Layout::Distributed);
+        assert_eq!((none.state, none.visited), (None, 1));
+        // Depth 1: one reverse pour never switches color, so every score is 0.
+        assert_eq!(
+            reverse_search(&mut rng, P, 1, 1000, Layout::Distributed).state,
+            None
         );
     }
 

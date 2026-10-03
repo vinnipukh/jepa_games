@@ -14,8 +14,10 @@ use clap::Args;
 use rayon::prelude::*;
 use water_sort_core::{
     DifficultyMetrics, Evaluation, GenConfig, Generator, Layout, MetricsConfig, Observer, Params,
-    RejectionCounts, SolverLimits, is_symmetric, splitmix64,
+    RejectionCounts, SolverLimits, Tier, is_symmetric, splitmix64,
 };
+
+use turan_water_sort::TuranStrategy;
 
 use crate::args::{GenArgs, GenSpec, GeneratorKind, Range, StrategyArg, parse_count};
 
@@ -57,6 +59,13 @@ pub struct StatsArgs {
     pub max_attempts: u32,
     #[arg(long, default_value_t = GenConfig::default().min_opt)]
     pub min_opt: u32,
+    /// Reject puzzles with `opt_moves` above this (with `--min-opt`: a difficulty band, D16).
+    #[arg(long)]
+    pub max_opt: Option<u32>,
+    /// Generate only one difficulty tier (D16): sets `--min-opt` / `--max-opt` per cell from the
+    /// core tier table. Cells outside the supported range are skipped.
+    #[arg(long, conflicts_with_all = ["min_opt", "max_opt"])]
+    pub tier: Option<Tier>,
     /// Random rollouts per accepted puzzle (metrics only; never affects acceptance).
     #[arg(long, default_value_t = MetricsConfig::default().random_rollouts)]
     pub rollouts: u32,
@@ -105,7 +114,17 @@ impl StatsArgs {
                 StrategyArg::Scramble => format!(
                     "--generator turan --strategy scramble --steps {} --max-extra-steps {} \
                      --layout {layout}",
-                    g.steps, g.max_extra_steps
+                    g.steps.unwrap_or(TuranStrategy::DEFAULT_STEPS),
+                    g.max_extra_steps
+                ),
+                StrategyArg::PourWalk => format!(
+                    "--generator turan --strategy pour-walk --steps {} --layout {layout}",
+                    g.steps.unwrap_or(TuranStrategy::DEFAULT_WALK_STEPS)
+                ),
+                StrategyArg::ReverseSearch => format!(
+                    "--generator turan --strategy reverse-search --search-depth {} \
+                     --search-states {} --layout {layout}",
+                    g.search_depth, g.search_states
                 ),
                 StrategyArg::Constrained => {
                     format!("--generator turan --strategy constrained --layout {layout}")
@@ -123,9 +142,36 @@ impl StatsArgs {
         }
     }
 
+    /// [`StatsArgs::config`] for one cell: with `--tier`, its `opt_moves` band (`None` outside
+    /// the supported range).
+    pub fn cell_config(&self, params: Params) -> Option<GenConfig> {
+        let cfg = self.config();
+        match self.tier {
+            None => Some(cfg),
+            Some(t) => {
+                let (min_opt, max_opt) = t.opt_band(&params, self.spec().layout())?;
+                Some(GenConfig {
+                    min_opt,
+                    max_opt,
+                    ..cfg
+                })
+            }
+        }
+    }
+
+    /// ` --max-opt M` or ` --tier T` as typed, or nothing.
+    fn band_flags(&self) -> String {
+        match (self.tier, self.max_opt) {
+            (Some(t), _) => format!(" --tier {t}"),
+            (None, Some(m)) => format!(" --max-opt {m}"),
+            (None, None) => String::new(),
+        }
+    }
+
     pub fn config(&self) -> GenConfig {
         GenConfig {
             min_opt: self.min_opt,
+            max_opt: self.max_opt,
             max_attempts: self.max_attempts,
             max_states: self.max_states,
             metrics: MetricsConfig {
@@ -398,6 +444,7 @@ pub fn summarize(
         cell.rejections.unsolvable += r.unsolvable;
         cell.rejections.timeout += r.timeout;
         cell.rejections.below_min_opt += r.below_min_opt;
+        cell.rejections.above_max_opt += r.above_max_opt;
         cell.rejections.construction += r.construction;
     }
     cell.attempts_mean = mean(attempts.iter().map(|&a| f64::from(a)));
@@ -435,7 +482,9 @@ fn run_cell<G: Generator + Sync>(
     args: &StatsArgs,
     pool: &rayon::ThreadPool,
 ) -> Cell {
-    let cfg = args.config();
+    let Some(cfg) = args.cell_config(params) else {
+        return Cell::empty(params, Status::Skipped);
+    };
     let run = collect_samples(g, params, &cfg, &args.sampling(), pool);
     summarize(params, run.status, cfg.max_attempts, &run.samples, run.wall)
 }
@@ -601,7 +650,7 @@ pub const CSV_HEADER: &str = "generator,n_colors,capacity,n_empty,status,support
 attempts_total,rate_unsolvable,rate_timeout,rate_below_min_opt,rate_already_solved,\
 attempts_mean,attempts_p50,attempts_p99,opt_mean,opt_p50,opt_p99,symmetric_frac,\
 states_p50,states_p99,solve_ms_p50,solve_ms_p99,accepted_solve_ms_p99,gen_ms_p50,gen_ms_p99,\
-wall_secs,opt_hist";
+wall_secs,opt_hist,rate_above_max_opt";
 
 fn csv(args: &StatsArgs, cells: &[Cell]) -> String {
     let mut out = String::from(CSV_HEADER);
@@ -638,6 +687,7 @@ fn csv(args: &StatsArgs, cells: &[Cell]) -> String {
             f(c.gen_ms_p99, 3),
             f(c.wall_secs, 1),
             hist(c),
+            f(c.rate(r.above_max_opt), 6),
         ];
         out.push_str(&fields.join(","));
         out.push('\n');
@@ -663,7 +713,7 @@ fn markdown(args: &StatsArgs, threads: usize, cells: &[Cell]) -> String {
     let _ = writeln!(
         md,
         "Produced by `water_sort_cli stats {} --colors {}..={} --capacity {}..={} \
-         --empty {}..={} --samples {} --max-states {} --max-attempts {} --min-opt {} \
+         --empty {}..={} --samples {} --max-states {} --max-attempts {} --min-opt {}{} \
          --base-seed {}` (release build, {threads} threads, batch {}, cell budget {} s). \
          Sample `i` of every cell uses seed `splitmix64(base_seed ^ i)`.\n",
         args.generator_flags(),
@@ -677,6 +727,7 @@ fn markdown(args: &StatsArgs, threads: usize, cells: &[Cell]) -> String {
         args.max_states,
         cfg.max_attempts,
         cfg.min_opt,
+        args.band_flags(),
         args.base_seed,
         args.batch,
         args.cell_budget_secs,
@@ -686,7 +737,7 @@ fn markdown(args: &StatsArgs, threads: usize, cells: &[Cell]) -> String {
         "Rates are per attempt. `solve` is the solver wall time of each attempt (all \
          outcomes); `acc. p99` only over accepted attempts; `states` is states expanded per \
          attempt. Timing columns depend on the machine and on parallel load; all other columns \
-         are deterministic. Unsolvable, timeout and below-min rates do not add up to the \
+         are deterministic. Unsolvable, timeout and outside-band rates do not add up to the \
          rejection rate when the construction itself rejects attempts (Turan, D15); those \
          count as attempts without a solver run. `sym` is the fraction of generated puzzles with a nontrivial \
          symmetry (D2); `gen` is the whole generation of one puzzle (all attempts plus metrics). \
@@ -702,7 +753,7 @@ fn markdown(args: &StatsArgs, threads: usize, cells: &[Cell]) -> String {
         SolverLimits::DEFAULT_MAX_STATES,
     );
     md.push_str(
-        "| colors | cap | empty | status | ok | samples | unsolv. % | timeout % | below min % \
+        "| colors | cap | empty | status | ok | samples | unsolv. % | timeout % | outside band % \
          | attempts mean / p99 | opt mean / p50 / p99 | solve ms p50 / p99 | acc. p99 ms \
          | gen ms p50 / p99 | states p50 / p99 | sym % |\n",
     );
@@ -728,7 +779,7 @@ fn markdown(args: &StatsArgs, threads: usize, cells: &[Cell]) -> String {
             },
             pct(c.rate(r.unsolvable)),
             pct(c.rate(r.timeout)),
-            pct(c.rate(r.below_min_opt)),
+            pct(c.rate(r.below_min_opt + r.above_max_opt)),
             f(c.attempts_mean, 2),
             c.attempts_p99,
             f(c.opt_mean, 1),
@@ -851,8 +902,61 @@ mod tests {
     }
 
     #[test]
+    fn tier_cells_stay_in_their_band() {
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(2)
+            .build()
+            .unwrap();
+        let p = Params {
+            n_colors: 4,
+            capacity: 4,
+            n_empty: 2,
+        };
+        for tier in Tier::ALL {
+            let a = args(&[
+                "--tier",
+                &tier.to_string(),
+                "--samples",
+                "20",
+                "--rollouts",
+                "0",
+            ]);
+            let GenSpec::Uniform(u) = a.spec() else {
+                panic!("expected uniform")
+            };
+            let cell = run_cell(&u, p, &a, &pool);
+            assert_eq!(cell.status, Status::Complete);
+            assert!(
+                cell.opt_hist
+                    .iter()
+                    .all(|&(o, _)| Tier::of(&p, Layout::Standard, o) == Some(tier)),
+                "{tier}: {:?}",
+                cell.opt_hist
+            );
+            assert!(markdown(&a, 1, &[cell]).contains(&format!("--tier {tier}")));
+        }
+        // Outside the supported range a tier has no band: the cell is skipped.
+        let a = args(&["--tier", "hard", "--samples", "5"]);
+        let big = Params { n_empty: 3, ..p };
+        let GenSpec::Uniform(u) = a.spec() else {
+            panic!("expected uniform")
+        };
+        assert_eq!(run_cell(&u, big, &a, &pool).status, Status::Skipped);
+        assert!(Wrapper::try_parse_from(["stats", "--tier", "easy", "--max-opt", "3"]).is_err());
+    }
+
+    #[test]
     fn turan_cells_count_construction_rejections() {
-        let a = args(&["--generator", "turan", "--samples", "30", "--rollouts", "0"]);
+        let a = args(&[
+            "--generator",
+            "turan",
+            "--strategy",
+            "scramble",
+            "--samples",
+            "30",
+            "--rollouts",
+            "0",
+        ]);
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(2)
             .build()
@@ -971,13 +1075,87 @@ mod tests {
 mod report_tests {
     use water_sort_core::{MAX_SUPPORTED_EMPTY, Params, is_supported};
 
+    /// The core tier tables (D16) follow their rule from the committed uniform reports: for each
+    /// supported configuration, `easy_max < medium_max` are the observed `opt_moves` values whose
+    /// cumulative shares are nearest to 1/3 and 2/3.
+    #[test]
+    fn tier_tables_match_reports() {
+        use water_sort_core::{Layout, tier_row, tier_rows};
+        for (layout, csv) in [
+            (
+                Layout::Standard,
+                include_str!("../../reports/uniform_stats.csv"),
+            ),
+            (
+                Layout::Distributed,
+                include_str!("../../reports/uniform_distributed_stats.csv"),
+            ),
+        ] {
+            let mut lines = csv.lines();
+            let header: Vec<&str> = lines.next().unwrap().split(',').collect();
+            let col = |name: &str| header.iter().position(|h| *h == name).unwrap();
+            let mut checked = 0;
+            for line in lines {
+                let f: Vec<&str> = line.split(',').collect();
+                let params = Params {
+                    n_colors: f[col("n_colors")].parse().unwrap(),
+                    capacity: f[col("capacity")].parse().unwrap(),
+                    n_empty: f[col("n_empty")].parse().unwrap(),
+                };
+                let Some(row) = tier_row(&params, layout) else {
+                    continue;
+                };
+                let hist: Vec<(u32, u32)> = f[col("opt_hist")]
+                    .split(' ')
+                    .map(|t| {
+                        let (v, n) = t.split_once(':').unwrap();
+                        (v.parse().unwrap(), n.parse().unwrap())
+                    })
+                    .collect();
+                assert_eq!(
+                    (row.easy_max, row.medium_max),
+                    tier_cuts(&hist),
+                    "{params:?} {layout}"
+                );
+                checked += 1;
+            }
+            assert_eq!(checked, tier_rows(layout).len(), "{layout}");
+        }
+    }
+
+    /// The tier rule on an ascending `(opt_moves, count)` histogram.
+    #[allow(clippy::cast_precision_loss)]
+    fn tier_cuts(hist: &[(u32, u32)]) -> (u32, u32) {
+        let total: u32 = hist.iter().map(|h| h.1).sum();
+        let mut cum = Vec::new();
+        let mut c = 0;
+        for &(v, n) in hist {
+            c += n;
+            cum.push((v, f64::from(c) / f64::from(total)));
+        }
+        let mut best: Option<(f64, u32, u32)> = None;
+        for (i, &(e, fe)) in cum[..cum.len() - 1].iter().enumerate() {
+            for &(m, fm) in &cum[i + 1..cum.len() - 1] {
+                let cost = (fe - 1.0 / 3.0).abs() + (fm - 2.0 / 3.0).abs();
+                if best.is_none_or(|b| cost < b.0 - 1e-12) {
+                    best = Some((cost, e, m));
+                }
+            }
+        }
+        let (_, e, m) = best.expect("at least three values");
+        (e, m)
+    }
+
     /// The core `SUPPORTED` table must match the committed report cell by cell.
     #[test]
     fn supported_table_matches_report() {
         let csv = include_str!("../../reports/uniform_stats.csv");
         let mut lines = csv.lines();
         let header: Vec<&str> = lines.next().unwrap().split(',').collect();
-        assert_eq!(header, super::CSV_HEADER.split(',').collect::<Vec<_>>());
+        // Columns added later (`rate_above_max_opt`, D16) go at the end, so the committed report
+        // header is a prefix of the current one.
+        let current: Vec<&str> = super::CSV_HEADER.split(',').collect();
+        assert_eq!(header, current[..header.len()]);
         let col = |name: &str| header.iter().position(|h| *h == name).unwrap();
         let (c, k, e, s) = (
             col("n_colors"),

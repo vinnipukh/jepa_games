@@ -72,6 +72,7 @@ fn configs() -> [(&'static str, Params, GenConfig); 3] {
             p(6, 4, 2),
             GenConfig {
                 min_opt: 10,
+                max_opt: None,
                 max_attempts: 1000,
                 max_states: 1_000_000,
                 metrics: MetricsConfig {
@@ -86,12 +87,26 @@ fn configs() -> [(&'static str, Params, GenConfig); 3] {
 fn generators() -> Vec<(&'static str, Turan)> {
     let mut out = Vec::new();
     for layout in Layout::ALL {
-        out.push(("scramble", Turan::new(TuranStrategy::default(), layout)));
+        out.push((
+            "scramble",
+            Turan::new(
+                TuranStrategy::scramble(TuranStrategy::DEFAULT_STEPS),
+                layout,
+            ),
+        ));
         out.push((
             "constrained",
             Turan::new(TuranStrategy::Constrained, layout),
         ));
+        out.push((
+            "reverse_search",
+            Turan::new(TuranStrategy::DEFAULT_REVERSE_SEARCH, layout),
+        ));
     }
+    out.push((
+        "pour_walk",
+        Turan::new(TuranStrategy::DEFAULT_POUR_WALK, Layout::Distributed),
+    ));
     out
 }
 

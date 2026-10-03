@@ -10,7 +10,7 @@ use std::path::PathBuf;
 
 use clap::Args;
 use statrs::distribution::{ChiSquared, ContinuousCDF};
-use water_sort_core::{GenConfig, MetricsConfig, Params};
+use water_sort_core::{GenConfig, MetricsConfig, Params, Tier};
 
 use crate::args::{GenSpec, parse_count};
 use crate::stats::{Cell, CellRun, Generated, Sampling, collect_samples, summarize};
@@ -39,6 +39,13 @@ pub struct CompareArgs {
     pub max_attempts: u32,
     #[arg(long, default_value_t = GenConfig::default().min_opt)]
     pub min_opt: u32,
+    /// Reject puzzles with `opt_moves` above this (D16).
+    #[arg(long)]
+    pub max_opt: Option<u32>,
+    /// Compare within one difficulty tier (D16): each side's `opt_moves` band per configuration
+    /// from the core tier table, for that side's layout.
+    #[arg(long, conflicts_with_all = ["min_opt", "max_opt"])]
+    pub tier: Option<Tier>,
     #[arg(long, default_value_t = MetricsConfig::default().random_rollouts)]
     pub rollouts: u32,
     #[arg(long, default_value_t = 0)]
@@ -77,6 +84,7 @@ impl CompareArgs {
     fn config(&self) -> GenConfig {
         GenConfig {
             min_opt: self.min_opt,
+            max_opt: self.max_opt,
             max_attempts: self.max_attempts,
             max_states: self.max_states,
             metrics: MetricsConfig {
@@ -100,7 +108,15 @@ struct Side {
 }
 
 fn run_side(spec: GenSpec, params: Params, args: &CompareArgs, pool: &rayon::ThreadPool) -> Side {
-    let cfg = args.config();
+    let mut cfg = args.config();
+    if let Some(t) = args.tier {
+        // `run` checked every configuration against the tier table first.
+        let (min_opt, max_opt) = t
+            .opt_band(&params, spec.layout())
+            .expect("supported configuration");
+        cfg.min_opt = min_opt;
+        cfg.max_opt = max_opt;
+    }
     let sampling = Sampling {
         samples: args.samples,
         batch: 64,
@@ -128,6 +144,22 @@ pub fn run(args: &CompareArgs) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(threads)
         .build()?;
+    if let Some(t) = args.tier {
+        for &ParamsArg(p) in &args.configs {
+            for spec in [args.a, args.b] {
+                if t.opt_band(&p, spec.layout()).is_none() {
+                    return Err(format!(
+                        "--tier: {}x{}x{} is not supported in the {} layout",
+                        p.n_colors,
+                        p.capacity,
+                        p.n_empty,
+                        spec.layout()
+                    )
+                    .into());
+                }
+            }
+        }
+    }
     let mut sections = Vec::new();
     for &ParamsArg(params) in &args.configs {
         let a = run_side(args.a, params, args, &pool);
@@ -362,7 +394,10 @@ fn section(params: Params, a: &Side, b: &Side) -> String {
             f(c.rate(r.construction) * 100.0, 2),
             f(c.rate(r.unsolvable) * 100.0, 2),
             f(c.rate(r.timeout) * 100.0, 2),
-            f(c.rate(r.below_min_opt + r.already_solved) * 100.0, 2),
+            f(
+                c.rate(r.below_min_opt + r.above_max_opt + r.already_solved) * 100.0,
+                2,
+            ),
             format!("{} / {} / {}", f(c.opt_mean, 2), c.opt_p50, c.opt_p99),
             format!("{} / {}", f(c.solve_ms_p50, 2), f(c.solve_ms_p99, 1)),
             format!("{} / {}", f(c.gen_ms_p50, 1), f(c.gen_ms_p99, 1)),
@@ -377,7 +412,7 @@ fn section(params: Params, a: &Side, b: &Side) -> String {
         "construction rejections %",
         "unsolvable %",
         "timeout %",
-        "solved or below min_opt %",
+        "solved or outside opt band %",
         "opt mean / p50 / p99",
         "solve ms p50 / p99",
         "gen ms p50 / p99",
@@ -527,7 +562,7 @@ fn report(args: &CompareArgs, threads: usize, sections: &[String]) -> String {
     let _ = writeln!(
         md,
         "Produced by `water_sort_cli compare --a {} --b {} --configs {} --samples {} --max-states {} \
-         --max-attempts {} --min-opt {} --rollouts {} --base-seed {}` (release build, {threads} \
+         --max-attempts {} --min-opt {}{} --rollouts {} --base-seed {}` (release build, {threads} \
          threads). Both sides use the seeds `splitmix64(base_seed ^ i)`; every number except the \
          `ms` columns is deterministic.\n",
         spec_arg(args.a),
@@ -537,6 +572,13 @@ fn report(args: &CompareArgs, threads: usize, sections: &[String]) -> String {
         cfg.max_states,
         cfg.max_attempts,
         cfg.min_opt,
+        args.tier.map_or_else(
+            || {
+                cfg.max_opt
+                    .map_or_else(String::new, |m| format!(" --max-opt {m}"))
+            },
+            |t| format!(" --tier {t}"),
+        ),
         cfg.metrics.random_rollouts,
         args.base_seed,
     );
@@ -571,6 +613,11 @@ fn spec_arg(spec: GenSpec) -> String {
                 g.layout
             ),
             TuranStrategy::Constrained => format!("turan:constrained:{}", g.layout),
+            TuranStrategy::PourWalk { steps } => format!("turan:walk:{steps}:{}", g.layout),
+            TuranStrategy::ReverseSearch {
+                max_depth,
+                max_states,
+            } => format!("turan:search:{max_states}:depth={max_depth}:{}", g.layout),
         },
     }
 }
@@ -578,6 +625,7 @@ fn spec_arg(spec: GenSpec) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use water_sort_core::Layout;
 
     #[test]
     fn chi_square_detects_shift_and_accepts_equal() {
@@ -627,12 +675,14 @@ mod tests {
         let out = dir.join("cmp");
         let args = CompareArgs {
             a: "uniform".parse().unwrap(),
-            b: "turan".parse().unwrap(),
+            b: "turan:scramble".parse().unwrap(),
             configs: vec!["4x3x2".parse().unwrap()],
             samples: 40,
             max_states: 5_000_000,
             max_attempts: 10_000,
             min_opt: 1,
+            max_opt: None,
+            tier: None,
             rollouts: 8,
             base_seed: 1,
             out: Some(out),
@@ -643,6 +693,38 @@ mod tests {
         assert!(text.contains("## 4 colors, capacity 3, 2 empty"));
         assert!(text.contains("| opt_moves |"));
         assert!(text.contains("--a uniform:standard --b turan:scramble:40:extra=100:standard"));
+        // Within one tier: both sides only produce puzzles in the tier's band.
+        let tiered = CompareArgs {
+            b: "turan:search:500:distributed".parse().unwrap(),
+            tier: Some(Tier::Medium),
+            samples: 20,
+            out: Some(dir.join("tier")),
+            ..args.clone()
+        };
+        let text = std::fs::read_to_string(run(&tiered).unwrap()).unwrap();
+        assert!(text.contains("--tier medium"));
+        let p = tiered.configs[0].0;
+        let hist = text
+            .lines()
+            .find_map(|l| l.strip_prefix("- opt_moves histogram (value:A/B): `"))
+            .unwrap();
+        for tok in hist.trim_end_matches('`').split(' ') {
+            let (v, ab) = tok.split_once(':').unwrap();
+            let (a, b) = ab.split_once('/').unwrap();
+            let v: u32 = v.parse().unwrap();
+            if a != "0" {
+                assert_eq!(Tier::of(&p, Layout::Standard, v), Some(Tier::Medium));
+            }
+            if b != "0" {
+                assert_eq!(Tier::of(&p, Layout::Distributed, v), Some(Tier::Medium));
+            }
+        }
+        // A configuration outside the supported range is refused before any work.
+        let unsupported = CompareArgs {
+            configs: vec!["4x3x3".parse().unwrap()],
+            ..tiered
+        };
+        assert!(run(&unsupported).is_err());
         std::fs::remove_dir_all(dir).unwrap();
     }
 }

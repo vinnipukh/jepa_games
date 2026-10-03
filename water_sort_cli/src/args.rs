@@ -36,6 +36,8 @@ impl From<LayoutArg> for Layout {
 pub enum StrategyArg {
     Scramble,
     Constrained,
+    PourWalk,
+    ReverseSearch,
 }
 
 /// A fully configured generator.
@@ -78,6 +80,8 @@ impl GenSpec {
                 let strategy = match g.strategy {
                     TuranStrategy::Scramble { .. } => "scramble",
                     TuranStrategy::Constrained => "constrained",
+                    TuranStrategy::PourWalk { .. } => "pour_walk",
+                    TuranStrategy::ReverseSearch { .. } => "reverse_search",
                 };
                 format!("turan_{strategy}_{}", g.layout)
             }
@@ -93,15 +97,22 @@ pub struct GenArgs {
     /// Initial-state layout (D14).
     #[arg(long, value_enum, default_value = "standard")]
     pub layout: LayoutArg,
-    /// Turan strategy.
-    #[arg(long, value_enum, default_value = "scramble")]
+    /// Turan strategy (default: reverse search, D16).
+    #[arg(long, value_enum, default_value = "reverse-search")]
     pub strategy: StrategyArg,
-    /// Turan scramble: reverse pours from the solved state.
-    #[arg(long, default_value_t = TuranStrategy::DEFAULT_STEPS)]
-    pub steps: u32,
+    /// Turan scramble: reverse pours from the solved state; pour walk: walk steps. Default:
+    /// 40 (scramble), 160 (pour walk).
+    #[arg(long)]
+    pub steps: Option<u32>,
     /// Turan scramble, standard layout: extra pours allowed to return to the layout.
     #[arg(long, default_value_t = TuranStrategy::DEFAULT_MAX_EXTRA_STEPS)]
     pub max_extra_steps: u32,
+    /// Turan reverse search: path depth limit.
+    #[arg(long, default_value_t = TuranStrategy::DEFAULT_SEARCH_DEPTH)]
+    pub search_depth: u32,
+    /// Turan reverse search: distinct states visited (accepts `1e4`).
+    #[arg(long, value_parser = parse_count_u32, default_value_t = TuranStrategy::DEFAULT_SEARCH_STATES)]
+    pub search_states: u32,
 }
 
 impl GenArgs {
@@ -112,10 +123,17 @@ impl GenArgs {
             GeneratorKind::Turan => GenSpec::Turan(Turan::new(
                 match self.strategy {
                     StrategyArg::Scramble => TuranStrategy::Scramble {
-                        steps: self.steps,
+                        steps: self.steps.unwrap_or(TuranStrategy::DEFAULT_STEPS),
                         max_extra_steps: self.max_extra_steps,
                     },
                     StrategyArg::Constrained => TuranStrategy::Constrained,
+                    StrategyArg::PourWalk => TuranStrategy::PourWalk {
+                        steps: self.steps.unwrap_or(TuranStrategy::DEFAULT_WALK_STEPS),
+                    },
+                    StrategyArg::ReverseSearch => TuranStrategy::ReverseSearch {
+                        max_depth: self.search_depth,
+                        max_states: self.search_states,
+                    },
                 },
                 layout,
             )),
@@ -124,8 +142,11 @@ impl GenArgs {
 }
 
 /// `uniform`, `uniform:distributed`, `turan:scramble:40`, `turan:scramble:40:distributed`,
-/// `turan:constrained:standard`, ... Fields after the generator are a layout name, a strategy
-/// name, `steps` (a number) or `extra=<max_extra_steps>`, in any order.
+/// `turan:constrained:standard`, `turan:walk:160:distributed`, `turan:search:10000:depth=300`,
+/// ... Fields after the generator are a layout name, a strategy name (`scramble`,
+/// `constrained`, `walk` / `pour_walk`, `search` / `reverse_search`), a number (scramble and walk:
+/// `steps`; search: its state budget), `extra=<max_extra_steps>` or `depth=<max_depth>`, in any
+/// order.
 impl FromStr for GenSpec {
     type Err = String;
 
@@ -134,19 +155,29 @@ impl FromStr for GenSpec {
         let generator = parts.next().unwrap_or_default();
         let mut layout = Layout::Standard;
         let mut strategy = None;
-        let mut steps = TuranStrategy::DEFAULT_STEPS;
+        let mut number = None;
         let mut extra = TuranStrategy::DEFAULT_MAX_EXTRA_STEPS;
+        let mut depth = TuranStrategy::DEFAULT_SEARCH_DEPTH;
         for part in parts {
             if let Ok(l) = part.parse::<Layout>() {
                 layout = l;
-            } else if part == "scramble" || part == "constrained" {
-                strategy = Some(part);
-            } else if let Ok(n) = part.parse::<u32>() {
-                steps = n;
+            } else if let Some(name) = match part {
+                "scramble" | "constrained" => Some(part),
+                "walk" | "pour_walk" => Some("walk"),
+                "search" | "reverse_search" => Some("search"),
+                _ => None,
+            } {
+                strategy = Some(name);
+            } else if let Ok(n) = parse_count_u32(part) {
+                number = Some(n);
             } else if let Some(n) = part.strip_prefix("extra=") {
                 extra = n
                     .parse()
                     .map_err(|e| format!("invalid extra in {s:?}: {e}"))?;
+            } else if let Some(n) = part.strip_prefix("depth=") {
+                depth = n
+                    .parse()
+                    .map_err(|e| format!("invalid depth in {s:?}: {e}"))?;
             } else {
                 return Err(format!("unknown field {part:?} in generator spec {s:?}"));
             }
@@ -154,13 +185,20 @@ impl FromStr for GenSpec {
         match generator {
             "uniform" if strategy.is_none() => Ok(Self::Uniform(Uniform::new(layout))),
             "turan" => Ok(Self::Turan(Turan::new(
-                if strategy == Some("constrained") {
-                    TuranStrategy::Constrained
-                } else {
-                    TuranStrategy::Scramble {
-                        steps,
+                match strategy {
+                    Some("constrained") => TuranStrategy::Constrained,
+                    Some("walk") => TuranStrategy::PourWalk {
+                        steps: number.unwrap_or(TuranStrategy::DEFAULT_WALK_STEPS),
+                    },
+                    // No strategy name: the default strategy (D16), a number is its budget.
+                    Some("search") | None => TuranStrategy::ReverseSearch {
+                        max_depth: depth,
+                        max_states: number.unwrap_or(TuranStrategy::DEFAULT_SEARCH_STATES),
+                    },
+                    Some(_) => TuranStrategy::Scramble {
+                        steps: number.unwrap_or(TuranStrategy::DEFAULT_STEPS),
                         max_extra_steps: extra,
-                    }
+                    },
                 },
                 layout,
             ))),
@@ -198,6 +236,12 @@ impl FromStr for Range {
         }
         Ok(Self(range))
     }
+}
+
+/// [`parse_count`] for a `u32`.
+pub fn parse_count_u32(s: &str) -> Result<u32, String> {
+    let v = parse_count(s)?;
+    u32::try_from(v).map_err(|_| format!("count {s:?} exceeds u32"))
 }
 
 /// A count that also accepts scientific notation, e.g. `5e6`.
@@ -245,19 +289,31 @@ mod tests {
         );
         assert_eq!(
             spec("turan"),
-            Ok("scramble(steps=40,max_extra_steps=100,layout=standard)".into())
+            Ok("reverse_search(max_depth=300,max_states=10000,layout=standard)".into())
         );
         assert_eq!(
             spec("turan:scramble:80:distributed"),
             Ok("scramble(steps=80,layout=distributed)".into())
         );
         assert_eq!(
-            spec("turan:20:extra=5"),
+            spec("turan:scramble:20:extra=5"),
             Ok("scramble(steps=20,max_extra_steps=5,layout=standard)".into())
         );
         assert_eq!(
             spec("turan:constrained:distributed"),
             Ok("constrained(layout=distributed)".into())
+        );
+        assert_eq!(
+            spec("turan:walk:80:distributed"),
+            Ok("pour_walk(steps=80,layout=distributed)".into())
+        );
+        assert_eq!(
+            spec("turan:search:1e4:depth=50"),
+            Ok("reverse_search(max_depth=50,max_states=10000,layout=standard)".into())
+        );
+        assert_eq!(
+            spec("turan:reverse_search:distributed"),
+            Ok("reverse_search(max_depth=300,max_states=10000,layout=distributed)".into())
         );
         assert!(spec("uniform:constrained").is_err());
         assert!(spec("turan:sideways").is_err());
@@ -265,7 +321,19 @@ mod tests {
         let slug = |s: &str| s.parse::<GenSpec>().unwrap().slug();
         assert_eq!(slug("uniform"), "uniform");
         assert_eq!(slug("uniform:distributed"), "uniform_distributed");
-        assert_eq!(slug("turan:distributed"), "turan_scramble_distributed");
+        assert_eq!(
+            slug("turan:distributed"),
+            "turan_reverse_search_distributed"
+        );
+        assert_eq!(
+            slug("turan:scramble:distributed"),
+            "turan_scramble_distributed"
+        );
+        assert_eq!(
+            slug("turan:walk:distributed"),
+            "turan_pour_walk_distributed"
+        );
+        assert_eq!(slug("turan:search"), "turan_reverse_search_standard");
     }
 
     #[test]

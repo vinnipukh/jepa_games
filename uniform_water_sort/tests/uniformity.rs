@@ -28,6 +28,7 @@ const ALPHA: f64 = 0.001;
 /// Metrics do not affect acceptance; skipping the rollouts only makes sampling faster.
 const CFG: GenConfig = GenConfig {
     min_opt: 1,
+    max_opt: None,
     max_attempts: 10_000,
     max_states: 5_000_000,
     metrics: MetricsConfig {

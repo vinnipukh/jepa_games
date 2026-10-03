@@ -172,7 +172,7 @@ Whatever the definition turns out to be, the following conditions apply:
 - [x] The measurements in Phase 2.3 are also produced for this generator and reported side by side with uniform.
 - [x] The distribution difference from uniform is measured: `opt_moves` histogram, color-change histogram, random policy failure rate.
 
-> **Status: implemented (2026-10-02).** Both layouts in both generators; refinements in D15; distributed limits (D3 addendum) and Turan defaults (D15) decided; a non-absorbing scramble follows before Phase 4. Reports: `reports/uniform_vs_turan_{standard,distributed}.md`, `reports/uniform_standard_vs_distributed.md`, `reports/uniform_distributed_stats.md`, `reports/turan_steps_sweep.md`.
+> **Status: implemented (2026-10-02).** Both layouts in both generators; refinements in D15; distributed limits (D3 addendum) and Turan defaults (D15) decided; follow-up done (D16): two new strategies, `PourWalk` (distributed) and `ReverseSearch` (I2A-style, now the Turan default), an `opt_moves` band in `GenConfig` and easy / medium / hard difficulty tiers; the non-absorbing scramble was dropped with evidence. D16 report: `reports/turan_difficulty_d16.md`. Reports: `reports/uniform_vs_turan_{standard,distributed}.md`, `reports/uniform_standard_vs_distributed.md`, `reports/uniform_distributed_stats.md`, `reports/turan_steps_sweep.md`.
 
 ---
 

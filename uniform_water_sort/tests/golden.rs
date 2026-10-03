@@ -72,6 +72,7 @@ fn configs() -> [(&'static str, Params, GenConfig); 3] {
             p(6, 4, 2),
             GenConfig {
                 min_opt: 10,
+                max_opt: None,
                 max_attempts: 1000,
                 max_states: 1_000_000,
                 metrics: MetricsConfig {
