@@ -15,6 +15,7 @@
 //! [`try_attempt_loop`]. `(params, seed, GenConfig, strategy, layout, VERSION)` fully determines
 //! the result; the strategy and layout are recorded in [`Generator::variant`].
 
+mod spec;
 mod walks;
 
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -27,6 +28,7 @@ use water_sort_core::{
     try_attempt_loop, unapply,
 };
 
+pub use spec::{StrategySpecError, parse_strategy};
 pub use walks::{SearchOutcome, pour_walk, reverse_search};
 
 /// How a Turan candidate is built.

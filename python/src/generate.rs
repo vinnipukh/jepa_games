@@ -87,74 +87,9 @@ impl AnyGenerator {
     }
 }
 
-/// Parses a Turan strategy: a name (`reverse_search`, `scramble`, `pour_walk`, `constrained`;
-/// `-` may replace `_`), optionally followed by `(key=value,...)` as in the generator's
-/// `variant()` string, e.g. `"scramble(steps=40)"` or
-/// `"reverse_search(max_depth=300,max_states=10000,layout=standard)"`. Missing arguments take
-/// their defaults; a `layout` argument must match the generator's layout.
+/// Parses a Turan strategy spec ([`turan_water_sort::parse_strategy`]).
 pub fn parse_strategy(spec: &str, layout: Layout) -> PyResult<TuranStrategy> {
-    let spec = spec.trim();
-    let (name, args) = match spec.split_once('(') {
-        Some((name, rest)) => {
-            let args = rest
-                .strip_suffix(')')
-                .ok_or_else(|| errors::value(format!("strategy {spec:?}: missing ')'")))?;
-            (name.trim(), args)
-        }
-        None => (spec, ""),
-    };
-    let mut kv: Vec<(&str, &str)> = Vec::new();
-    for part in args.split(',').map(str::trim).filter(|p| !p.is_empty()) {
-        let (k, v) = part
-            .split_once('=')
-            .ok_or_else(|| errors::value(format!("strategy {spec:?}: expected key=value")))?;
-        kv.push((k.trim(), v.trim()));
-    }
-    let mut take = |key: &str, default: u32| -> PyResult<u32> {
-        match kv.iter().position(|(k, _)| *k == key) {
-            Some(i) => {
-                let (_, v) = kv.remove(i);
-                v.parse()
-                    .map_err(|_| errors::value(format!("strategy {spec:?}: bad value for {key}")))
-            }
-            None => Ok(default),
-        }
-    };
-    let strategy = match name.replace('-', "_").as_str() {
-        "reverse_search" | "search" => TuranStrategy::ReverseSearch {
-            max_depth: take("max_depth", TuranStrategy::DEFAULT_SEARCH_DEPTH)?,
-            max_states: take("max_states", TuranStrategy::DEFAULT_SEARCH_STATES)?,
-        },
-        "scramble" => TuranStrategy::Scramble {
-            steps: take("steps", TuranStrategy::DEFAULT_STEPS)?,
-            max_extra_steps: take("max_extra_steps", TuranStrategy::DEFAULT_MAX_EXTRA_STEPS)?,
-        },
-        "pour_walk" | "walk" => TuranStrategy::PourWalk {
-            steps: take("steps", TuranStrategy::DEFAULT_WALK_STEPS)?,
-        },
-        "constrained" => TuranStrategy::Constrained,
-        other => {
-            return Err(errors::value(format!(
-                "unknown strategy {other:?} (expected reverse_search, scramble, pour_walk or \
-                 constrained)"
-            )));
-        }
-    };
-    for (k, v) in kv {
-        if k == "layout" {
-            let given = parse_layout(v)?;
-            if given != layout {
-                return Err(errors::value(format!(
-                    "strategy {spec:?} names layout {given}, but the generator uses {layout}"
-                )));
-            }
-        } else {
-            return Err(errors::value(format!(
-                "strategy {spec:?}: unknown argument {k:?}"
-            )));
-        }
-    }
-    Ok(strategy)
+    turan_water_sort::parse_strategy(spec, layout).map_err(|e| errors::value(e.0))
 }
 
 /// Generates one puzzle. With `seed=None` the generator picks a fresh seed (OS entropy for
