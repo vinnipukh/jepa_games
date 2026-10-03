@@ -1,17 +1,28 @@
-# Builds the web game (web/app/dist) and deploys it to GitHub Pages.
-#
-# Not active yet (D20): it only runs when started by hand (Actions -> "Web game (Pages)" ->
-# Run workflow). Every run also keeps the built site as the `web-game` artifact, so it can be
-# downloaded and served from any static host. The deploy job needs Pages enabled with
-# "GitHub Actions" as the source (Settings -> Pages); on a private repo that may need a paid
-# plan. To deploy on every push to main once Pages is on, add `push: branches: [main]` below.
+# Builds the web game (web/app/dist) and deploys it to GitHub Pages
+# (https://vinnipukh.github.io/jepa_games/) on every push to main that touches the game: the
+# Rust crates it compiles, the app, or this workflow. It can also be started by hand (Actions ->
+# "Web game (Pages)" -> Run workflow); a manual run without "deploy" only builds the site. Every
+# run keeps the built site as the `web-game` artifact. Pages is enabled with "GitHub Actions" as
+# the source (Settings -> Pages).
 name: Web game (Pages)
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - water_sort_core/**
+      - uniform_water_sort/**
+      - turan_water_sort/**
+      - web/**
+      - Cargo.toml
+      - Cargo.lock
+      - rust-toolchain.toml
+      - scripts/wasm-bindgen-version.sh
+      - .github/workflows/pages.yml
   workflow_dispatch:
     inputs:
       deploy:
-        description: Deploy to GitHub Pages (needs Pages enabled); otherwise only build the artifact
+        description: Deploy to GitHub Pages; otherwise only build the artifact
         type: boolean
         default: false
 
@@ -55,13 +66,13 @@ jobs:
           name: web-game
           path: web/app/dist
           retention-days: 14
-      - if: inputs.deploy
+      - if: github.event_name == 'push' || inputs.deploy
         uses: actions/upload-pages-artifact@v4
         with:
           path: web/app/dist
 
   deploy:
-    if: inputs.deploy
+    if: github.event_name == 'push' || inputs.deploy
     needs: build
     runs-on: ubuntu-latest
     permissions:
