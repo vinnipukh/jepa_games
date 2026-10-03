@@ -192,25 +192,25 @@ Whatever the definition turns out to be, the following conditions apply:
 
 ### 5.1 Binding
 
-- [ ] `jepa_water_sort` Python package built with `maturin` + PyO3.
-- [ ] Exposed API: `generate(generator, params, seed)`, `solve(state)`, `step(state, move)`, `legal_moves`, `action_mask`, `stars`, `canonical_hash`.
-- [ ] Batch functions (batch step, batch generate) release the GIL.
+- [x] `jepa_water_sort` Python package built with `maturin` + PyO3.
+- [x] Exposed API: `generate(generator, params, seed)`, `solve(state)`, `step(state, move)`, `legal_moves`, `action_mask`, `stars`, `canonical_hash`.
+- [x] Batch functions (batch step, batch generate) release the GIL.
 
 ### 5.2 Gymnasium env
 
-- [ ] `WaterSortEnv(generator="uniform" | "turan", params=...)`, `reset(seed=None)`.
-- [ ] Observation: `(n_tubes, capacity, n_colors + 1)` one-hot tensor.
-- [ ] Action: `Discrete(n_tubes * n_tubes)`, invalid moves masked via `info["action_mask"]`.
-- [ ] `info` contains: `opt_moves`, `moves_so_far`, `seed`, `canonical_hash`, solvability status (optional, expensive).
-- [ ] Episode end: solved, dead end reached (optional check), or move limit (`k * opt_moves`).
-- [ ] Reward (for the RL baseline only; JEPA does not use reward): −1 per move, optional potential-based shaping `γΦ(s') − Φ(s)` with Φ = −(number of color changes). Non-potential shaping is not used.
-- [ ] Vectorized env support.
+- [x] `WaterSortEnv(generator="uniform" | "turan", params=...)`, `reset(seed=None)`.
+- [x] Observation: `(n_tubes, capacity, n_colors + 1)` one-hot tensor.
+- [x] Action: `Discrete(n_tubes * n_tubes)`, invalid moves masked via `info["action_mask"]`.
+- [x] `info` contains: `opt_moves`, `moves_so_far`, `seed`, `canonical_hash`, solvability status (optional, expensive).
+- [x] Episode end: solved, dead end reached (optional check), or move limit (`k * opt_moves`).
+- [x] Reward (for the RL baseline only; JEPA does not use reward): −1 per move, optional potential-based shaping `γΦ(s') − Φ(s)` with Φ = −(number of color changes). Non-potential shaping is not used.
+- [x] Vectorized env support.
 
 ### 5.3 Trajectory logger
 
-- [ ] Recorded unit: `(state, action, next_state, done, puzzle_id, step)`.
-- [ ] Trajectory sources are labeled separately: `optimal` (solver solution), `random` (legal random), `epsilon` (optimal + ε random deviation), `human` (from the web).
-- [ ] Output: sharded `.npz` or Parquet.
+- [x] Recorded unit: `(state, action, next_state, done, puzzle_id, step)`.
+- [x] Trajectory sources are labeled separately: `optimal` (solver solution), `random` (legal random), `epsilon` (optimal + ε random deviation), `human` (from the web).
+- [x] Output: sharded `.npz` or Parquet.
 
 **Acceptance criterion:** `gymnasium.utils.env_checker.check_env` passes; a rollout made from Python produces exactly the same result as `step` in Rust.
 

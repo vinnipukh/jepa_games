@@ -5,6 +5,7 @@ members = [
     "uniform_water_sort",
     "turan_water_sort",
     "water_sort_cli",
+    "python",
 ]
 
 [workspace.package]
@@ -23,7 +24,7 @@ rand_chacha = "0.10"
 getrandom = "0.4"
 rayon = "1.12"
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde_json = { version = "1", features = ["float_roundtrip"] }
 xxhash-rust = { version = "0.8", features = ["xxh3"] }
 thiserror = "2"
 clap = { version = "4", features = ["derive"] }

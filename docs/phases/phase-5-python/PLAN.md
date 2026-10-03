@@ -68,13 +68,16 @@ WaterSortEnv(generator="uniform" | "turan", params=Params(6, 4, 2), min_opt=...,
 
 ## Tasks
 
-1. [ ] PyO3 crate + maturin build, `State`/`Puzzle` classes, scalar functions
-2. [ ] Batch functions with `allow_threads`
-3. [ ] `WaterSortEnv` + `check_env`
-4. [ ] Native vector env
-5. [ ] Policies + logger + shard writer
-6. [ ] Rust↔Python parity test
-7. [ ] CI job: `ubuntu-latest` + `windows-latest`, `uv` → `maturin develop` → `pytest`
+Done (2026-10-03). Deviations and details: D19 in [`decisions.md`](../../decisions.md) (episode rules moved to `water_sort_core::episode`, Turan env default `reverse_search` per D16, extra logger columns and a `greedy` source).
+
+
+1. [x] PyO3 crate + maturin build, `State`/`Puzzle` classes, scalar functions
+2. [x] Batch functions with `allow_threads`
+3. [x] `WaterSortEnv` + `check_env`
+4. [x] Native vector env
+5. [x] Policies + logger + shard writer
+6. [x] Rust↔Python parity test
+7. [x] CI job: `ubuntu-latest` + `windows-latest`, `uv` → `maturin develop` → `pytest`
 
 ## Tests
 

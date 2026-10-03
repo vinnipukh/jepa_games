@@ -1,0 +1,28 @@
+[package]
+name = "jepa_water_sort"
+description = "Python binding (PyO3) of the Water Sort core and generators"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+
+[lib]
+name = "_native"
+crate-type = ["cdylib"]
+# No Rust tests: the binding is tested from Python (pytest), and a test binary would have to
+# link libpython.
+test = false
+doctest = false
+
+[dependencies]
+water_sort_core.workspace = true
+uniform_water_sort.workspace = true
+turan_water_sort.workspace = true
+rayon.workspace = true
+serde_json.workspace = true
+pyo3 = { version = "0.29", features = ["abi3-py310"] }
+numpy = "0.29"
+
+[lints]
+workspace = true

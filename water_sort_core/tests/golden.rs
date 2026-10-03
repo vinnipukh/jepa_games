@@ -11,8 +11,9 @@ use rand_chacha::rand_core::SeedableRng;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use water_sort_core::{
-    Move, Params, SolveResult, SolverLimits, State, bounded_u32, canonical_full, canonical_hash,
-    fisher_yates, solve, splitmix64, time_seed,
+    EpisodeRules, Move, Params, SolveResult, SolverLimits, State, bounded_u32, canonical_full,
+    canonical_hash, episode_step, fisher_yates, legal_moves, move_limit, puzzle_code,
+    sample_heights, solve, splitmix64, time_seed,
 };
 
 fn golden_path(name: &str) -> PathBuf {
@@ -280,4 +281,255 @@ fn puzzle_codes() {
         );
     }
     check("puzzle_codes.json", &cases);
+}
+
+// The flags mirror the Gymnasium step outputs.
+#[allow(clippy::struct_excessive_bools)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+struct RolloutStep {
+    action: usize,
+    /// Puzzle code of the state after the step.
+    state: String,
+    units_moved: u8,
+    reward: f64,
+    illegal: bool,
+    dead_end: bool,
+    solved: bool,
+    terminated: bool,
+    truncated: bool,
+    moves_so_far: u32,
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+struct RolloutCase {
+    name: String,
+    puzzle_code: String,
+    /// `None` for an unsolvable start (replayed with `env_step`, not through the env).
+    opt_moves: Option<u32>,
+    move_limit_k: u32,
+    move_limit: u32,
+    shaping_gamma: Option<f64>,
+    dead_end_max_states: Option<u64>,
+    steps: Vec<RolloutStep>,
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+struct Rollouts {
+    rules: String,
+    cases: Vec<RolloutCase>,
+}
+
+/// Plays `actions` (or, with `policy_seed`, a ChaCha-driven mix of 70 % random legal and 30 %
+/// arbitrary actions until the episode ends) under the episode rules.
+fn rollout(
+    name: String,
+    start: State,
+    opt_moves: Option<u32>,
+    k: u32,
+    rules: EpisodeRules,
+    actions: Option<&[usize]>,
+    policy_seed: u64,
+) -> RolloutCase {
+    let n_actions = u32::try_from(start.n_tubes() * start.n_tubes()).unwrap();
+    let mut rng = ChaCha20Rng::seed_from_u64(policy_seed);
+    let mut state = start;
+    let mut moves = 0;
+    let mut steps = Vec::new();
+    for i in 0..400 {
+        let action = match actions {
+            Some(list) if i < list.len() => list[i],
+            Some(_) => break,
+            None => {
+                let legal: Vec<Move> = legal_moves(&state).collect();
+                if legal.is_empty() || bounded_u32(&mut rng, 10) < 3 {
+                    bounded_u32(&mut rng, n_actions) as usize
+                } else {
+                    let j = bounded_u32(&mut rng, u32::try_from(legal.len()).unwrap());
+                    legal[j as usize].action_index(state.n_tubes())
+                }
+            }
+        };
+        let out = episode_step(&state, action, moves, &rules).unwrap();
+        steps.push(RolloutStep {
+            action,
+            state: puzzle_code::encode(&out.state),
+            units_moved: out.units_moved,
+            reward: out.reward,
+            illegal: out.illegal,
+            dead_end: out.dead_end,
+            solved: out.solved,
+            terminated: out.terminated,
+            truncated: out.truncated,
+            moves_so_far: out.moves_so_far,
+        });
+        state = out.state;
+        moves = out.moves_so_far;
+        if out.terminated || out.truncated {
+            break;
+        }
+    }
+    RolloutCase {
+        name,
+        puzzle_code: puzzle_code::encode(&start),
+        opt_moves,
+        move_limit_k: k,
+        move_limit: rules.move_limit,
+        shaping_gamma: rules.shaping_gamma,
+        dead_end_max_states: rules.dead_end_max_states,
+        steps,
+    }
+}
+
+/// Environment rollouts (Phase 5): the Python `step`, `env_step`, `batch_env_step` and
+/// `WaterSortEnv` must reproduce every state, reward and flag exactly.
+/// Rollout starts: shuffled standard fills (as in [`sample_states`]) and distributed states.
+fn rollout_starts() -> Vec<(String, State)> {
+    let mut starts: Vec<(String, State)> = Vec::new();
+    for params in [p(3, 3, 1), p(4, 4, 2), p(6, 4, 2)] {
+        for seed in [0, 1, 42] {
+            let state = State::from_fill(params, &shuffled_units(params, seed)).unwrap();
+            starts.push((
+                format!(
+                    "standard_{}x{}_{}_{}",
+                    params.n_colors,
+                    params.capacity,
+                    params.n_empty,
+                    hex(seed)
+                ),
+                state,
+            ));
+        }
+    }
+    for params in [p(4, 4, 2), p(6, 4, 2)] {
+        for seed in [0, 7] {
+            let mut rng = ChaCha20Rng::seed_from_u64(seed);
+            let heights = sample_heights(&mut rng, params);
+            let mut units = State::sorted_units(params);
+            fisher_yates(&mut rng, &mut units);
+            let state = State::from_heights(params, &heights, &units).unwrap();
+            starts.push((
+                format!(
+                    "distributed_{}x{}_{}_{}",
+                    params.n_colors,
+                    params.capacity,
+                    params.n_empty,
+                    hex(seed)
+                ),
+                state,
+            ));
+        }
+    }
+    starts
+}
+
+/// Hand-made dead ends: one pour into a position with no legal move, and an unsolvable start
+/// that only the solver check ends.
+fn dead_end_cases() -> Vec<RolloutCase> {
+    let mut cases = Vec::new();
+    let dead = State::from_tubes(p(3, 2, 1), &[&[0, 2][..], &[1, 2], &[0, 1], &[]]).unwrap();
+    let opt = solve(&dead, &SolverLimits::default()).opt_moves();
+    let no_check = EpisodeRules {
+        move_limit: move_limit(4, opt.unwrap()),
+        shaping_gamma: None,
+        dead_end_max_states: None,
+    };
+    cases.push(rollout(
+        "dead_end_no_legal_move".into(),
+        dead,
+        opt,
+        4,
+        no_check,
+        Some(&[2 * 4 + 3]),
+        0,
+    ));
+    let unsolvable =
+        State::from_tubes(p(3, 3, 1), &[&[][..], &[0, 1, 1], &[0, 2, 2], &[0, 1, 2]]).unwrap();
+    for check in [None, Some(10_000)] {
+        let rules = EpisodeRules {
+            move_limit: 6,
+            shaping_gamma: None,
+            dead_end_max_states: check,
+        };
+        let name = format!("unsolvable_dead_end_check_{}", check.is_some());
+        cases.push(rollout(name, unsolvable, None, 4, rules, None, 99));
+    }
+    cases
+}
+
+#[test]
+fn rollouts() {
+    let mut cases = Vec::new();
+    for (i, (name, start)) in rollout_starts().into_iter().enumerate() {
+        let SolveResult::Solvable {
+            opt_moves,
+            solution,
+            ..
+        } = solve(&start, &SolverLimits::default())
+        else {
+            continue;
+        };
+        if opt_moves == 0 {
+            continue;
+        }
+        let rules = |k: u32, gamma: Option<f64>| EpisodeRules {
+            move_limit: move_limit(k, opt_moves),
+            shaping_gamma: gamma,
+            dead_end_max_states: None,
+        };
+        let optimal: Vec<usize> = solution
+            .iter()
+            .map(|m| m.action_index(start.n_tubes()))
+            .collect();
+        cases.push(rollout(
+            format!("{name}_optimal"),
+            start,
+            Some(opt_moves),
+            4,
+            rules(4, None),
+            Some(&optimal),
+            0,
+        ));
+        cases.push(rollout(
+            format!("{name}_optimal_shaped"),
+            start,
+            Some(opt_moves),
+            4,
+            rules(4, Some(0.99)),
+            Some(&optimal),
+            0,
+        ));
+        for (j, (k, gamma)) in [(1, None), (2, Some(0.9)), (4, None)]
+            .into_iter()
+            .enumerate()
+        {
+            let seed = splitmix64((i * 16 + j) as u64);
+            cases.push(rollout(
+                format!("{name}_mixed_k{k}"),
+                start,
+                Some(opt_moves),
+                k,
+                rules(k, gamma),
+                None,
+                seed,
+            ));
+        }
+    }
+    cases.extend(dead_end_cases());
+    assert!(cases.iter().any(|c| c.steps.iter().any(|s| s.truncated)));
+    assert!(cases.iter().any(|c| c.steps.iter().any(|s| s.illegal)));
+    assert!(cases.iter().any(|c| c.steps.iter().any(|s| s.solved)));
+    assert!(
+        cases
+            .iter()
+            .filter(|c| c.steps.iter().any(|s| s.dead_end))
+            .count()
+            >= 2
+    );
+    check(
+        "rollouts.json",
+        &Rollouts {
+            rules: "water_sort_core::episode::episode_step; actions are from * n_tubes + to".into(),
+            cases,
+        },
+    );
 }

@@ -1,0 +1,4 @@
+[env]
+# The `python/` crate is only ever a Python extension module (maturin sets this too). Without it,
+# a plain `cargo build --workspace` would link libpython, which CI runners may not ship.
+PYO3_BUILD_EXTENSION_MODULE = "1"
