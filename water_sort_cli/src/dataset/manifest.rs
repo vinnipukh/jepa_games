@@ -151,8 +151,9 @@ pub struct Exclusion {
     /// Dataset whose puzzles were excluded.
     pub other: String,
     pub other_manifest_sha256: String,
-    pub other_split: Split,
-    pub split: Split,
+    /// `None`: all splits.
+    pub other_split: Option<Split>,
+    pub split: Option<Split>,
     pub removed: u64,
 }
 

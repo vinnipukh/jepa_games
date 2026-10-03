@@ -6,7 +6,6 @@
 //! single writer thread, which writes while the next window is generated. The written bytes
 //! therefore depend only on the records, never on the thread count, and memory stays bounded.
 
-use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::{self, BufWriter, Write as _};
 use std::path::{Path, PathBuf};
@@ -17,13 +16,11 @@ use rayon::prelude::*;
 use water_sort_core::{GenConfig, GenError, Params, splitmix64};
 
 use super::dedup::{Dedup, DedupCounts, Seen, canonical_encoding, report_markdown};
-use super::jsonl::JsonlWriter;
 use super::manifest::{
-    DedupSummary, Failure, FileEntry, Format, GeneratorInfo, MANIFEST, Manifest, SplitInfo,
-    sha256_file,
+    DedupSummary, Failure, Format, GeneratorInfo, MANIFEST, Manifest, SplitInfo,
 };
-use super::parquet::ParquetWriter;
 use super::record::{Record, RunInfo};
+use super::sink::DatasetSink;
 use super::split::{Split, SplitRanges};
 use super::time::{format_rfc3339, now_unix_nanos};
 use crate::args::GenSpec;
@@ -109,99 +106,28 @@ fn generate_chunk(
         .collect()
 }
 
-/// An open record file.
-enum Sink {
-    Parquet(Box<ParquetWriter<BufWriter<File>>>),
-    Jsonl(JsonlWriter<BufWriter<File>>),
-}
-
-impl Sink {
-    fn create(path: &Path, format: Format, params: Params) -> io::Result<Self> {
-        let out = BufWriter::new(File::create(path)?);
-        Ok(match format {
-            Format::Parquet => Self::Parquet(Box::new(ParquetWriter::new(out, params)?)),
-            Format::Jsonl => Self::Jsonl(JsonlWriter::new(out)),
-        })
-    }
-
-    fn write(&mut self, record: Record) -> io::Result<()> {
-        match self {
-            Self::Parquet(w) => w.write(record),
-            Self::Jsonl(w) => w.write(&record),
-        }
-    }
-
-    fn finish(self) -> io::Result<()> {
-        let out = match self {
-            Self::Parquet(w) => (*w).finish()?,
-            Self::Jsonl(w) => w.finish()?,
-        };
-        out.into_inner().map_err(io::IntoInnerError::into_error)?;
-        Ok(())
-    }
-}
-
-/// One output file and its record count.
-struct OutFile {
-    name: String,
-    split: Option<Split>,
-    sink: Sink,
-    records: u64,
-}
-
 /// The writer thread's state: files, dedup, counts and the dropped-record log.
 struct Writer {
-    files: Vec<OutFile>,
+    sink: DatasetSink,
     dedup: Dedup,
     dedup_counts: DedupCounts,
     dropped: BufWriter<File>,
     failures: Vec<Failure>,
     generated: u64,
-    split_counts: BTreeMap<Split, u64>,
-    tiers: BTreeMap<String, u64>,
-    split_tiers: BTreeMap<Split, BTreeMap<String, u64>>,
-}
-
-fn tier_name(record: &Record) -> String {
-    record
-        .tier
-        .map_or_else(|| "none".to_owned(), |t| t.to_string())
 }
 
 impl Writer {
     fn create(dir: &Path, opts: &GenerateOptions) -> io::Result<Self> {
-        let ext = opts.format.extension();
-        let names: Vec<(String, Option<Split>)> = if opts.split_files {
-            Split::ALL
-                .iter()
-                .map(|&s| (format!("{s}.{ext}"), Some(s)))
-                .collect()
-        } else {
-            vec![(format!("puzzles.{ext}"), None)]
-        };
-        let files = names
-            .into_iter()
-            .map(|(name, split)| {
-                Ok(OutFile {
-                    sink: Sink::create(&dir.join(&name), opts.format, opts.params)?,
-                    name,
-                    split,
-                    records: 0,
-                })
-            })
-            .collect::<io::Result<_>>()?;
+        let sink = DatasetSink::create(dir, opts.format, opts.params, opts.split_files)?;
         let mut dropped = BufWriter::new(File::create(dir.join(DROPPED_FILE))?);
         writeln!(dropped, "dropped_id,kept_id,canonical_hash")?;
         Ok(Self {
-            files,
+            sink,
             dedup: Dedup::new(),
             dedup_counts: DedupCounts::default(),
             dropped,
             failures: Vec::new(),
             generated: 0,
-            split_counts: Split::ALL.iter().map(|&s| (s, 0)).collect(),
-            tiers: BTreeMap::new(),
-            split_tiers: Split::ALL.iter().map(|&s| (s, BTreeMap::new())).collect(),
         })
     }
 
@@ -226,22 +152,7 @@ impl Writer {
                 return Ok(());
             }
         };
-        let tier = tier_name(&record);
-        *self.split_counts.entry(record.split).or_default() += 1;
-        *self
-            .split_tiers
-            .entry(record.split)
-            .or_default()
-            .entry(tier.clone())
-            .or_default() += 1;
-        *self.tiers.entry(tier).or_default() += 1;
-        let file = self
-            .files
-            .iter_mut()
-            .find(|f| f.split.is_none_or(|s| s == record.split))
-            .expect("a file for every split");
-        file.records += 1;
-        file.sink.write(record)
+        self.sink.write(record)
     }
 
     fn run(mut self, windows: &Receiver<Vec<Vec<Outcome>>>) -> io::Result<Self> {
@@ -337,19 +248,8 @@ pub fn generate(dir: &Path, opts: &GenerateOptions) -> io::Result<Manifest> {
         .dropped
         .into_inner()
         .map_err(io::IntoInnerError::into_error)?;
-    let mut files = Vec::new();
-    for f in writer.files {
-        f.sink.finish()?;
-        let (sha256, bytes) = sha256_file(&dir.join(&f.name))?;
-        files.push(FileEntry {
-            path: f.name,
-            split: f.split,
-            records: f.records,
-            bytes,
-            sha256,
-        });
-    }
-    let records = files.iter().map(|f| f.records).sum();
+    let written = writer.sink.finish(dir)?;
+    let records = written.records();
     let finished_at = now_unix_nanos();
     let manifest = Manifest {
         format_version: super::manifest::FORMAT_VERSION,
@@ -384,12 +284,12 @@ pub fn generate(dir: &Path, opts: &GenerateOptions) -> io::Result<Manifest> {
                 .iter()
                 .map(|&s| (s, opts.split.range(s)))
                 .collect(),
-            counts: writer.split_counts,
+            counts: written.split_counts,
         },
-        tiers: writer.tiers,
-        split_tiers: writer.split_tiers,
+        tiers: written.tiers,
+        split_tiers: written.split_tiers,
         format: opts.format,
-        files,
+        files: written.files,
         tool_version: opts.tool_version.clone(),
         created_at: format_rfc3339(opts.created_at),
         started_at: format_rfc3339(started_at),

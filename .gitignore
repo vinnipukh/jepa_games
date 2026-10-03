@@ -28,3 +28,6 @@ wandb/
 Thumbs.db
 .idea/
 .vscode/
+
+# Committed fixture datasets
+!water_sort_cli/tests/fixtures/**/*.parquet

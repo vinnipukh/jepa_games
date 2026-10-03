@@ -1,5 +1,6 @@
 //! Command-line front ends of the dataset subcommands.
 
+use std::fmt::Write as _;
 use std::io;
 use std::path::PathBuf;
 
@@ -8,9 +9,12 @@ use water_sort_core::{GenConfig, MetricsConfig, Params, Tier, is_supported_in};
 
 use super::dedup::standalone_report;
 use super::generate::{CHUNK, GenerateOptions, WINDOW_CHUNKS, generate, has_dataset};
+use super::leakage::{Selection, Side, leakage, report_markdown_leakage, write_excluded};
 use super::manifest::{Format, Manifest, tool_version};
+use super::split::Split;
 use super::split::SplitRanges;
 use super::time::{now_unix_nanos, parse_rfc3339};
+use super::validate::validate;
 use crate::args::{GenArgs, parse_count};
 
 /// `generate`: one generator, one configuration, `count` puzzles.
@@ -230,6 +234,96 @@ pub fn run_dedup_report(args: &DedupReportArgs) -> io::Result<()> {
     Ok(())
 }
 
+/// `train`, `val`, `test`, or `all` (`None`).
+pub fn parse_split_selection(s: &str) -> Result<Option<Split>, String> {
+    if s == "all" {
+        Ok(None)
+    } else {
+        s.parse().map(Some)
+    }
+}
+
+/// `leakage --a <dir> --a-split test --b <dir> --b-split train`.
+#[derive(Args, Debug, Clone)]
+pub struct LeakageArgs {
+    #[arg(long)]
+    pub a: PathBuf,
+    /// `train`, `val`, `test` or `all`.
+    #[arg(long, value_parser = parse_split_selection, default_value = "test")]
+    pub a_split: Option<Split>,
+    #[arg(long)]
+    pub b: PathBuf,
+    #[arg(long, value_parser = parse_split_selection, default_value = "train")]
+    pub b_split: Option<Split>,
+    /// Write a copy of this side's dataset without its shared records (only those in its
+    /// selected split) to `--out`.
+    #[arg(long, value_enum, requires = "out")]
+    pub exclude_from: Option<Side>,
+    /// Output directory for `--exclude-from`.
+    #[arg(long, requires = "exclude_from")]
+    pub out: Option<PathBuf>,
+    /// Write the Markdown report here as well as to stdout.
+    #[arg(long)]
+    pub report: Option<PathBuf>,
+}
+
+pub fn run_leakage(args: &LeakageArgs) -> io::Result<()> {
+    let a = Selection {
+        dir: &args.a,
+        split: args.a_split,
+    };
+    let b = Selection {
+        dir: &args.b,
+        split: args.b_split,
+    };
+    let (l, shared) = leakage(a, b)?;
+    let mut md = report_markdown_leakage(a, b, &l);
+    if let (Some(side), Some(out)) = (args.exclude_from, &args.out) {
+        let (source, other) = match side {
+            Side::A => (a, b),
+            Side::B => (b, a),
+        };
+        if has_dataset(out) {
+            return Err(io::Error::other(format!(
+                "{} already holds a dataset",
+                out.display()
+            )));
+        }
+        let removed = write_excluded(source, other, &shared, out)?;
+        let _ = writeln!(
+            md,
+            "\nRemoved {removed} records from {} and wrote the rest to `{}`.",
+            source.dir.display(),
+            out.display()
+        );
+    }
+    print!("{md}");
+    if let Some(path) = &args.report {
+        std::fs::write(path, &md)?;
+    }
+    Ok(())
+}
+
+/// `validate <dir>`.
+#[derive(Args, Debug, Clone)]
+pub struct ValidateArgs {
+    /// Dataset directory (with `manifest.json`).
+    pub dir: PathBuf,
+    /// Fraction of records regenerated from their seed and compared field by field (re-runs
+    /// the generator, so this dominates the run time).
+    #[arg(long, default_value_t = 0.01)]
+    pub regen_rate: f64,
+}
+
+pub fn run_validate(args: &ValidateArgs) -> io::Result<bool> {
+    if !(0.0..=1.0).contains(&args.regen_rate) {
+        return Err(io::Error::other("--regen-rate must be in [0, 1]"));
+    }
+    let report = validate(&args.dir, args.regen_rate)?;
+    print!("{}", report.summary());
+    Ok(report.ok())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -241,5 +335,8 @@ mod tests {
         assert_eq!(parse_seed("42"), Ok(42));
         assert!(parse_seed("0xg").is_err());
         assert!(parse_seed("-1").is_err());
+        assert_eq!(parse_split_selection("all"), Ok(None));
+        assert_eq!(parse_split_selection("val"), Ok(Some(Split::Val)));
+        assert!(parse_split_selection("dev").is_err());
     }
 }

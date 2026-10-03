@@ -5,11 +5,14 @@ pub mod commands;
 pub mod dedup;
 pub mod generate;
 pub mod jsonl;
+pub mod leakage;
 pub mod manifest;
 pub mod parquet;
 pub mod record;
+pub mod sink;
 pub mod split;
 pub mod time;
+pub mod validate;
 
 use std::fs::File;
 use std::io::{self, BufRead, BufReader};

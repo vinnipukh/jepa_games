@@ -29,6 +29,10 @@ enum Command {
     Generate(commands::GenerateArgs),
     /// Duplicate, split and tier report of a dataset, with a fresh scan of its stored records.
     DedupReport(commands::DedupReportArgs),
+    /// Puzzles shared between two datasets (by canonical form); optionally drops them from one.
+    Leakage(commands::LeakageArgs),
+    /// Re-checks every record of a dataset and regenerates a sample from its seed.
+    Validate(commands::ValidateArgs),
 }
 
 fn main() -> ExitCode {
@@ -38,6 +42,12 @@ fn main() -> ExitCode {
         Command::Sweep(args) => sweep::run(args),
         Command::Generate(args) => commands::run_generate(args).map(|_| ()).map_err(Into::into),
         Command::DedupReport(args) => commands::run_dedup_report(args).map_err(Into::into),
+        Command::Leakage(args) => commands::run_leakage(args).map_err(Into::into),
+        Command::Validate(args) => match commands::run_validate(args) {
+            Ok(true) => Ok(()),
+            Ok(false) => Err("validation failed".into()),
+            Err(e) => Err(e.into()),
+        },
         Command::Compare(args) => compare::run(args).map(|path| {
             eprintln!("wrote {}", path.display());
         }),
