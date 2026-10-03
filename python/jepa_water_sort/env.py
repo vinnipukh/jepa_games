@@ -217,11 +217,12 @@ class WaterSortEnv(gym.Env):
             "opt_moves": self.opt_moves,
             "moves_so_far": self.moves_so_far,
             "move_limit": self.move_limit,
-            "seed": self.puzzle_seed,
+            # numpy uint64 rather than int, so Gymnasium's vector envs batch values >= 2**63.
+            "seed": None if self.puzzle_seed is None else np.uint64(self.puzzle_seed),
             "generator_variant": self.generator_variant,
             "layout": self.layout,
             "puzzle_code": self.puzzle_state.puzzle_code,
-            "canonical_hash": _native.canonical_hash(self.puzzle_state),
+            "canonical_hash": np.uint64(_native.canonical_hash(self.puzzle_state)),
             "action_mask": _native.action_mask(self.state),
         }
         if self.compute_solvability:

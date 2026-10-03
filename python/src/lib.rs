@@ -53,5 +53,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(episode::env_step, m)?)?;
     m.add_function(wrap_pyfunction!(episode::move_limit, m)?)?;
     m.add_function(wrap_pyfunction!(episode::is_dead_end, m)?)?;
+    m.add_function(wrap_pyfunction!(batch::batch_env_step, m)?)?;
+    m.add_function(wrap_pyfunction!(batch::batch_action_mask, m)?)?;
     Ok(())
 }

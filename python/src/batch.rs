@@ -1,10 +1,12 @@
 //! Batched functions. They copy their inputs out of Python, release the GIL and run on rayon.
 
-use numpy::ndarray::{Array1, Array3};
-use numpy::{AllowTypeChange, IntoPyArray, PyArray1, PyArray3, PyArrayLike1, PyArrayLike3};
+use numpy::ndarray::{Array1, Array2, Array3};
+use numpy::{
+    AllowTypeChange, IntoPyArray, PyArray1, PyArray2, PyArray3, PyArrayLike1, PyArrayLike3,
+};
 use pyo3::prelude::*;
 use rayon::prelude::*;
-use water_sort_core::{Move, apply};
+use water_sort_core::{EpisodeRules, EpisodeStep, Move, action_mask, apply, episode_step};
 
 use crate::errors;
 use crate::generate::AnyGenerator;
@@ -119,4 +121,127 @@ pub fn batch_generate(
             .collect()
     })
     .map_err(errors::generation)
+}
+
+/// The arrays `batch_env_step` returns: `(next_states, units_moved, rewards, terminated,
+/// truncated, illegal, dead_end, solved)`.
+type EnvStepArrays<'py> = (
+    Bound<'py, PyArray3<u8>>,
+    Bound<'py, PyArray1<u8>>,
+    Bound<'py, PyArray1<f64>>,
+    Bound<'py, PyArray1<bool>>,
+    Bound<'py, PyArray1<bool>>,
+    Bound<'py, PyArray1<bool>>,
+    Bound<'py, PyArray1<bool>>,
+    Bound<'py, PyArray1<bool>>,
+);
+
+/// One environment step per row under the shared episode rules (`water_sort_core::episode`),
+/// the batched form of `env_step` behind `WaterSortVectorEnv`. `moves_so_far[i]` counts the
+/// actions row `i` took before this one. Releases the GIL.
+#[pyfunction]
+#[pyo3(signature = (states, actions, moves_so_far, move_limits, shaping_gamma = None, dead_end_max_states = None))]
+pub fn batch_env_step<'py>(
+    py: Python<'py>,
+    states: PyArrayLike3<'py, u8, AllowTypeChange>,
+    actions: PyArrayLike1<'py, i64, AllowTypeChange>,
+    moves_so_far: PyArrayLike1<'py, u32, AllowTypeChange>,
+    move_limits: PyArrayLike1<'py, u32, AllowTypeChange>,
+    shaping_gamma: Option<f64>,
+    dead_end_max_states: Option<u64>,
+) -> PyResult<EnvStepArrays<'py>> {
+    let (b, n_tubes, capacity) = states.as_array().dim();
+    for (name, len) in [
+        ("actions", actions.as_array().len()),
+        ("moves_so_far", moves_so_far.as_array().len()),
+        ("move_limits", move_limits.as_array().len()),
+    ] {
+        if len != b {
+            return Err(errors::value(format!("{b} states but {len} {name}")));
+        }
+    }
+    let mut cells: Vec<u8> = states.as_array().iter().copied().collect();
+    let actions: Vec<i64> = actions.as_array().iter().copied().collect();
+    let moves: Vec<u32> = moves_so_far.as_array().iter().copied().collect();
+    let limits: Vec<u32> = move_limits.as_array().iter().copied().collect();
+    let row = (n_tubes * capacity).max(1);
+    let outcomes = py
+        .detach(|| {
+            let results: Vec<Result<EpisodeStep, String>> = cells
+                .par_chunks_mut(row)
+                .enumerate()
+                .with_min_len(PARALLEL_MIN)
+                .map(|(i, out)| {
+                    let s = state_from_cells(out, n_tubes, capacity)
+                        .map_err(|e| format!("states[{i}]: {e}"))?;
+                    let action = usize::try_from(actions[i])
+                        .map_err(|_| format!("actions[{i}] = {} is negative", actions[i]))?;
+                    let rules = EpisodeRules {
+                        move_limit: limits[i],
+                        shaping_gamma,
+                        dead_end_max_states,
+                    };
+                    let step = episode_step(&s, action, moves[i], &rules)
+                        .map_err(|e| format!("actions[{i}]: {e}"))?;
+                    write_cells(&step.state, out);
+                    Ok(step)
+                })
+                .collect();
+            results.into_iter().collect::<Result<Vec<_>, String>>()
+        })
+        .map_err(errors::value)?;
+    let column = |f: fn(&EpisodeStep) -> bool| -> Bound<'py, PyArray1<bool>> {
+        outcomes.iter().map(f).collect::<Vec<_>>().into_pyarray(py)
+    };
+    let next = Array3::from_shape_vec((b, n_tubes, capacity), cells).expect("shape matches");
+    Ok((
+        next.into_pyarray(py),
+        outcomes
+            .iter()
+            .map(|o| o.units_moved)
+            .collect::<Vec<_>>()
+            .into_pyarray(py),
+        outcomes
+            .iter()
+            .map(|o| o.reward)
+            .collect::<Vec<_>>()
+            .into_pyarray(py),
+        column(|o| o.terminated),
+        column(|o| o.truncated),
+        column(|o| o.illegal),
+        column(|o| o.dead_end),
+        column(|o| o.solved),
+    ))
+}
+
+/// `action_mask` per row: a `(B, n_tubes²)` bool array. Releases the GIL.
+#[pyfunction]
+pub fn batch_action_mask<'py>(
+    py: Python<'py>,
+    states: PyArrayLike3<'py, u8, AllowTypeChange>,
+) -> PyResult<Bound<'py, PyArray2<bool>>> {
+    let (b, n_tubes, capacity) = states.as_array().dim();
+    let cells: Vec<u8> = states.as_array().iter().copied().collect();
+    let row = (n_tubes * capacity).max(1);
+    let n_actions = n_tubes * n_tubes;
+    let masks = py
+        .detach(|| {
+            let rows: Vec<Result<Vec<bool>, String>> = cells
+                .par_chunks(row)
+                .enumerate()
+                .with_min_len(PARALLEL_MIN)
+                .map(|(i, cells)| {
+                    state_from_cells(cells, n_tubes, capacity)
+                        .map(|s| action_mask(&s))
+                        .map_err(|e| format!("states[{i}]: {e}"))
+                })
+                .collect();
+            rows.into_iter()
+                .collect::<Result<Vec<_>, String>>()
+                .map(|rows| rows.concat())
+        })
+        .map_err(errors::value)?;
+    Ok(Array2::from_shape_vec((b, n_actions), masks)
+        .expect("shape matches")
+        .into_pyarray(py))
 }

@@ -18,6 +18,8 @@ from jepa_water_sort._native import (
     State,
     __version__,
     action_mask,
+    batch_action_mask,
+    batch_env_step,
     batch_generate,
     batch_step,
     canonical,
@@ -36,6 +38,7 @@ from jepa_water_sort._native import (
     variant,
 )
 from jepa_water_sort.env import WaterSortEnv, decode_observation, encode_observation
+from jepa_water_sort.vector import WaterSortVectorEnv
 
 ENV_ID = "jepa_water_sort/WaterSort-v0"
 if ENV_ID not in gymnasium.envs.registry:
@@ -44,6 +47,7 @@ if ENV_ID not in gymnasium.envs.registry:
 __all__ = [
     "ENV_ID",
     "WaterSortEnv",
+    "WaterSortVectorEnv",
     "decode_observation",
     "encode_observation",
     "env_step",
@@ -59,6 +63,8 @@ __all__ = [
     "State",
     "__version__",
     "action_mask",
+    "batch_action_mask",
+    "batch_env_step",
     "batch_generate",
     "batch_step",
     "canonical",
