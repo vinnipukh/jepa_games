@@ -74,7 +74,7 @@ svg.board { width: 100%; max-height: 70vh; display: block; user-select: none; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .complete {
   margin: 12px 0; padding: 14px 16px; border: 1px solid var(--border); border-radius: 10px;
-  background: var(--panel); display: grid; gap: 8px;
+  background: var(--panel); display: grid; gap: 8px; justify-items: start;
 }
 .complete h2 { margin: 0; font-size: 1.2rem; }
 .stars { font-size: 1.8rem; letter-spacing: 2px; color: #f5b301; }

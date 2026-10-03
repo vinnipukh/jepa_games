@@ -5,6 +5,7 @@ import { renderBoard, shakeTube } from './ui/board';
 import { createControls, strategySpec, type GenSettings } from './ui/controls';
 import { copyText, h } from './ui/dom';
 import { GenerationWorker } from './generation';
+import { renderComplete } from './ui/complete';
 
 /** The page state. All game logic is in `session` (wasm); this only tracks the selection. */
 class App {
@@ -12,9 +13,12 @@ class App {
   session: wasm.Session | null = null;
   selected: number | null = null;
   labels = false;
+  /** While the optimal solution is replayed: a second core Session on the same puzzle. */
+  replay: { session: wasm.Session; timer: ReturnType<typeof setInterval>; step: number } | null = null;
 
   readonly board = h('div', { class: 'board-wrap', id: 'board' });
   readonly status = h('div', { class: 'status', role: 'status' });
+  readonly complete = h('div', { id: 'complete-wrap' });
   readonly info = h('div', { class: 'info' });
   readonly moves = h('span', { class: 'moves', id: 'moves' }, '0');
   readonly undo = h('button', { id: 'undo' }, 'Undo');
@@ -49,6 +53,7 @@ class App {
         h('label', { class: 'small' }, labels, ' color numbers'),
       ),
       this.status,
+      this.complete,
       this.board,
     );
   }
@@ -91,6 +96,7 @@ class App {
   }
 
   load(puzzle: wasm.Puzzle): void {
+    this.stopReplay();
     this.puzzle?.free();
     this.session?.free();
     this.puzzle = puzzle;
@@ -103,7 +109,7 @@ class App {
 
   onTube(i: number): void {
     const s = this.session;
-    if (!s || s.is_solved()) return;
+    if (!s || s.is_solved() || this.replay) return;
     if (this.selected === null) {
       const top = s.cells()[i * s.capacity];
       if (top === wasm.empty_cell()) {
@@ -129,20 +135,80 @@ class App {
     } else {
       this.setStatus('');
     }
-    if (s.is_solved()) this.setStatus(`Solved in ${s.moves_counted()} moves!`);
+    if (s.is_solved()) {
+      this.setStatus('');
+      this.renderComplete();
+    }
+  }
+
+  renderComplete(): void {
+    const p = this.puzzle;
+    const s = this.session;
+    if (!p || !s || !s.is_solved()) {
+      this.complete.replaceChildren();
+      return;
+    }
+    this.complete.replaceChildren(
+      renderComplete(p, s, {
+        onReplay: () => this.startReplay(),
+        onNext: () => void this.newPuzzle(this.controls.get()),
+      }),
+    );
+  }
+
+  /** Replays the optimal solution through a fresh core Session, one pour per tick. */
+  startReplay(): void {
+    const p = this.puzzle;
+    const solution = p?.solution;
+    if (!p || !solution) return;
+    this.stopReplay();
+    const session = new wasm.Session(p);
+    const n = p.n_tubes;
+    let half = false;
+    const timer = setInterval(() => {
+      const r = this.replay!;
+      if (r.step >= solution.length) {
+        clearInterval(r.timer);
+        this.setStatus(`Optimal solution: ${solution.length} moves.`);
+        return;
+      }
+      const a = solution[r.step];
+      if (!half) {
+        this.selected = Math.floor(a / n); // show the source tube first
+      } else {
+        r.session.pour(Math.floor(a / n), a % n);
+        this.selected = null;
+        r.step++;
+        this.setStatus(`Optimal solution: move ${r.step} of ${solution.length}`);
+      }
+      half = !half;
+      this.render();
+    }, 350);
+    this.replay = { session, timer, step: 0 };
+    this.render();
+  }
+
+  stopReplay(): void {
+    if (!this.replay) return;
+    clearInterval(this.replay.timer);
+    this.replay.session.free();
+    this.replay = null;
+    this.selected = null;
   }
 
   render(): void {
-    const s = this.session;
+    const s = this.replay?.session ?? this.session;
     if (!s) return;
     renderBoard(
       this.board,
       { cells: s.cells(), nTubes: s.n_tubes, capacity: s.capacity, selected: this.selected, labels: this.labels },
       (i) => this.onTube(i),
     );
-    this.moves.textContent = String(s.moves_counted());
-    this.undo.disabled = !s.can_undo() || s.is_solved();
-    this.restart.disabled = s.is_solved();
+    const game = this.session!;
+    this.moves.textContent = String(game.moves_counted());
+    this.undo.disabled = !game.can_undo() || game.is_solved();
+    this.restart.disabled = game.is_solved();
+    if (!this.replay) this.renderComplete();
   }
 
   renderInfo(): void {
