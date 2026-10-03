@@ -229,11 +229,10 @@ impl Puzzle {
     #[wasm_bindgen(getter)]
     pub fn solution(&self) -> Option<Vec<u16>> {
         let n = self.state.n_tubes();
-        self.data.solution.as_ref().map(|sol| {
-            sol.iter()
-                .map(|m| u16::try_from(m.action_index(n)).expect("n_tubes <= 16"))
-                .collect()
-        })
+        self.data
+            .solution
+            .as_ref()
+            .map(|sol| sol.iter().map(|&m| crate::action_u16(m, n)).collect())
     }
 
     #[wasm_bindgen(getter)]

@@ -89,7 +89,7 @@ impl Session {
     pub fn legal_moves(&self) -> Vec<u16> {
         let s = self.inner.state();
         core::legal_moves(s)
-            .map(|m| u16::try_from(m.action_index(s.n_tubes())).expect("n_tubes <= 16"))
+            .map(|m| crate::action_u16(m, s.n_tubes()))
             .collect()
     }
 

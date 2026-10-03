@@ -67,6 +67,8 @@ jobs:
         with:
           tool: wasm-bindgen@${{ steps.wb.outputs.version }}
       - run: cargo clippy -p water_sort_web --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: Golden vectors and rollouts on wasm32 (wasm-bindgen-test, Node)
+        run: cargo test --release --locked -p water_sort_web --target wasm32-unknown-unknown
       - name: Build the wasm module and JS bindings
         run: web/build.sh
 

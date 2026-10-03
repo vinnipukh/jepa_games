@@ -2,3 +2,9 @@
 # The `python/` crate is only ever a Python extension module (maturin sets this too). Without it,
 # a plain `cargo build --workspace` would link libpython, which CI runners may not ship.
 PYO3_BUILD_EXTENSION_MODULE = "1"
+
+# `cargo test --target wasm32-unknown-unknown` runs the wasm-bindgen tests in Node. The runner
+# ships with wasm-bindgen-cli, whose version must equal wasm-bindgen's in Cargo.lock
+# (scripts/wasm-bindgen-version.sh).
+[target.wasm32-unknown-unknown]
+runner = "wasm-bindgen-test-runner"

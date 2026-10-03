@@ -23,3 +23,9 @@ js-sys = "0.3.106"
 # unification turns it on for uniform_water_sort's `fresh_seed` too. It only selects the backend on wasm32.
 getrandom = { workspace = true, features = ["wasm_js"] }
 
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+rand_chacha.workspace = true
+
+[lints]
+workspace = true

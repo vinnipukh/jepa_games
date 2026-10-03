@@ -10,8 +10,13 @@
 //! passes it to `fresh_seed`.
 
 #![forbid(unsafe_code)]
-// wasm-bindgen exports take owned `String`s / `Option`s and return `Result<_, JsError>`.
-#![allow(clippy::needless_pass_by_value, clippy::missing_errors_doc)]
+// wasm-bindgen exports take owned `String`s / `Option`s and return `Result<_, JsError>`; JS class
+// arguments such as `&JsParams` must be references (by value would consume the JS object).
+#![allow(
+    clippy::needless_pass_by_value,
+    clippy::missing_errors_doc,
+    clippy::trivially_copy_pass_by_ref
+)]
 
 mod generate;
 mod puzzle;
@@ -19,10 +24,11 @@ mod session;
 
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
-use water_sort_core::{self as core, Layout, StarConfig};
+use water_sort_core::{self as core, Layout, Move, StarConfig};
 
 pub use generate::{
     WEB_MAX_STATES, fresh_seed, generate, generate_with_config, strategies, variant, web_config,
+    web_config_json,
 };
 pub use puzzle::{Puzzle, from_code};
 pub use session::Session;
@@ -109,6 +115,11 @@ pub(crate) fn parse_seed(seed: &str) -> Result<u64, JsError> {
     }
     u64::from_str_radix(digits, 16)
         .map_err(|_| JsError::new(&format!("seed {seed:?}: expected hex digits")))
+}
+
+/// `m` as an action index `from * n_tubes + to` (below 16 × 16, so it fits).
+pub(crate) fn action_u16(m: Move, n_tubes: usize) -> u16 {
+    u16::try_from(m.action_index(n_tubes)).unwrap_or(u16::MAX)
 }
 
 pub(crate) fn hex(x: u64) -> String {
