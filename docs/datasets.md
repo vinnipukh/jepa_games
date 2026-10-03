@@ -63,3 +63,17 @@ About 85 puzzles/s on 2 threads at this size (~1.6 h per 1M on 4 cores), mostly 
 - `water_sort_cli validate <dir>`: re-checks every record and regenerates a 1 % sample.
 - `water_sort_cli dedup-report <dir>`: duplicate, split and tier counts.
 - `water_sort_cli leakage --a <dir> --a-split test --b <dir> --b-split all --exclude-from b --out <new dir>`: removes from B the puzzles that are in A's test split. Needed only when training on a whole dataset; train and test splits never overlap (D17).
+
+## Trajectories (Phase 5)
+
+Trajectory sets are collected on one split of a dataset with the Python logger (see
+[`python/README.md`](../python/README.md), D19):
+
+```bash
+cd python
+uv run --no-project python -m jepa_water_sort.logger collect --dataset ../data/uniform_c6k4e2 \
+    --split train --source epsilon --epsilon 0.1 --policy-seed 0 --out ../data/traj_eps01_train
+```
+
+The split is re-checked per record, so a trajectory set never contains a puzzle of another
+split. Same dataset, source, ε and policy seed give byte-identical shards.
