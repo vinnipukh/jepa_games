@@ -55,6 +55,9 @@ python -m jepa_water_sort.logger export-npz ../data/traj_eps01_train --out traj.
 ```
 
 Sources: `optimal`, `random`, `epsilon`, `greedy` (collected on one dataset split only) and
-`human` (`logger.import_human`). Output: zstd Parquet shards of about 1M transitions plus a
+`human`: games exported from the web game (Phase 6), imported with
+`python -m jepa_water_sort.logger import-human --out DIR export.json ...`
+(`logger.import_web_exports`, which replays every row through the core rules; one episode per
+run of pours between undos and restarts). Output: zstd Parquet shards of about 1M transitions plus a
 `manifest.json`; `logger.read_transitions` / `logger.to_numpy` load them, and
 `encode_observation` rebuilds the one-hot observation. Details: D19 in `docs/decisions.md`.

@@ -218,13 +218,13 @@ Whatever the definition turns out to be, the following conditions apply:
 
 ## Phase 6 — Web UI (WASM)
 
-- [ ] `water_sort_core` + both generators via `wasm-bindgen`.
-- [ ] Screen: tubes, move counter, undo, restart, new puzzle, generator selector, seed display and opening a puzzle from a seed.
-- [ ] Completion screen: player moves, `opt_moves`, star count.
-- [ ] Undo/restart rules as in Phase 1.5.
-- [ ] Optional: export player trajectories in the Phase 5.3 format (`human` source).
+- [x] `water_sort_core` + both generators via `wasm-bindgen`.
+- [x] Screen: tubes, move counter, undo, restart, new puzzle, generator selector, seed display and opening a puzzle from a seed.
+- [x] Completion screen: player moves, `opt_moves`, star count.
+- [x] Undo/restart rules as in Phase 1.5.
+- [x] Optional: export player trajectories in the Phase 5.3 format (`human` source).
 
-**Acceptance criterion:** The same seed opens the same puzzle on the web and in Python.
+**Acceptance criterion:** The same seed opens the same puzzle on the web and in Python. Met: shared golden vectors in the wasm and Python CI jobs, plus a manual spot check (D20).
 
 ---
 
