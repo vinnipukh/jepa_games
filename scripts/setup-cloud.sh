@@ -3,7 +3,7 @@
 # Idempotent: safe to run at the start of every session.
 #
 #   scripts/setup-cloud.sh            Rust only (phases 1-4)
-#   scripts/setup-cloud.sh --python   + uv and Python 3.12 (phase 5, 7)
+#   scripts/setup-cloud.sh --python   + uv, Python 3.12 and python/.venv with jepa_water_sort (phase 5, 7)
 #   scripts/setup-cloud.sh --web      + wasm32 target and wasm-bindgen-cli (phase 6; needs Node)
 set -euo pipefail
 
@@ -41,6 +41,13 @@ if $want_python; then
     export PATH="$HOME/.local/bin:$PATH"
   fi
   uv python install 3.12
+  echo "==> building the jepa_water_sort Python package into python/.venv"
+  (
+    cd python
+    [ -d .venv ] || uv venv --python 3.12
+    uv pip install maturin -r pyproject.toml --extra test
+    uv run --no-project maturin develop --release --locked
+  )
 fi
 
 if $want_web; then

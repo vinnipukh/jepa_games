@@ -29,6 +29,27 @@ jobs:
           cargo run --locked -p water_sort_cli -- validate water_sort_cli/tests/fixtures/datasets/uniform_c5k4e2 --regen-rate 1
           cargo run --locked -p water_sort_cli -- validate water_sort_cli/tests/fixtures/datasets/turan_pour_walk_distributed_c4k3e1 --regen-rate 1
 
+  python:
+    name: python (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: python
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install toolchain from rust-toolchain.toml
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - uses: astral-sh/setup-uv@v6
+      - run: uv venv --python 3.12
+      - run: uv pip install maturin -r pyproject.toml --extra test
+      - run: uv run --no-project maturin develop --release --locked
+      - run: uv run --no-project python -m pytest -v
+
   heavy-tests:
     name: heavy tests (release, ignored)
     runs-on: ubuntu-latest
