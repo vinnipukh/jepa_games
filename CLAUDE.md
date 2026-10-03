@@ -10,7 +10,7 @@ Water Sort puzzle game with two puzzle generators, plus the infrastructure to tr
 - `docs/phases/phase-N-<name>/PLAN.md`: detailed plan per phase. `START_PROMPT.md`: the prompt that starts that phase.
 - `docs/HANDOFF.md`: how to continue development (cloud sessions).
 - `reports/`: committed measurement reports (`water_sort_cli stats` / `compare` output).
-- Crates: `water_sort_core` (all game rules, solver, canonical hash, stars, sampling, `Generator` trait), `uniform_water_sort`, `turan_water_sort`, `water_sort_cli`.
+- Crates: `water_sort_core` (all game rules, solver, canonical hash, stars, sampling, `Generator` trait), `uniform_water_sort`, `turan_water_sort`, `water_sort_cli` (binary + library: `args`, `dataset` = Phase 4 record schema, Parquet/JSONL, generate, dedup, split, leakage, validate; D17).
 
 ## Commands
 
@@ -22,6 +22,7 @@ cargo test --workspace --locked
 cargo test --release --workspace --locked -- --ignored   # heavy tests (CI job `heavy-tests`)
 WATER_SORT_BLESS=1 cargo test ...                        # regenerate golden vectors (review the diff!)
 cargo run --release -p water_sort_cli -- stats --help
+cargo run --release -p water_sort_cli -- generate --help   # datasets; also dedup-report, leakage, validate
 ```
 
 The toolchain is pinned in `rust-toolchain.toml` (1.99.0). `Cargo.lock` is committed; always build with `--locked`.
@@ -43,6 +44,7 @@ The toolchain is pinned in `rust-toolchain.toml` (1.99.0). `Cargo.lock` is commi
 - Two layouts (D14): `Standard` (full tubes + whole empty tubes) and `Distributed` (free space spread over tubes, half-empty tubes allowed), in both generators (`water_sort_core::Layout`, Phase 3). Distributed limits: `SUPPORTED_DISTRIBUTED` / `is_supported_in` (D3 addendum, decided).
 - Uniform = labeled-uniform over accepted fills (D2). Turan = time-seeded strategies (D1); default `ReverseSearch` (I2A-style search over reverse pours keeping the best-scoring state), plus `Scramble`, `PourWalk` (distributed only) and `Constrained` (D16). A reverse walk alone cannot make more than `n_colors × (capacity − 1)` progressing steps (D16).
 - Difficulty tiers easy / medium / hard: `water_sort_core::Tier`, cut points from uniform's `opt_moves` distribution per configuration and layout (D16).
+- Datasets (D17): record `i` has seed `splitmix64(master_seed ^ i)`; dedup by canonical form keeps the lowest `record_id`; split = `canonical_hash % 100` (80/10/10); every record stores its tier. `manifest.json` describes a dataset directory, `validate` re-checks it. Two runs with the same master seed and `--created-at` are byte-identical for any thread count.
 
 ## Workflow
 

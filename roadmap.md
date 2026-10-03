@@ -178,11 +178,11 @@ Whatever the definition turns out to be, the following conditions apply:
 
 ## Phase 4 — Dataset and storage
 
-- [ ] Puzzle record format: all `GeneratedPuzzle` fields + `params` + creation time. JSONL (for debugging) and Parquet (for bulk data).
-- [ ] `water_sort_cli generate --generator uniform --count N --params ... --out ...` command, parallelized with `rayon`.
-- [ ] Duplicate detection via the `canonical_full` hash.
-- [ ] Train/val/test split is done on the canonical hash (`hash % 100` ranges), so color or tube permutations of the same puzzle never land in different sets.
-- [ ] Cross-generator leakage check: are there shared canonical hashes between the uniform test set and the turan train set?
+- [x] Puzzle record format: all `GeneratedPuzzle` fields + `params` + creation time. JSONL (for debugging) and Parquet (for bulk data).
+- [x] `water_sort_cli generate --generator uniform --count N --params ... --out ...` command, parallelized with `rayon`.
+- [x] Duplicate detection via the `canonical_full` hash.
+- [x] Train/val/test split is done on the canonical hash (`hash % 100` ranges), so color or tube permutations of the same puzzle never land in different sets.
+- [x] Cross-generator leakage check: are there shared canonical hashes between the uniform test set and the turan train set?
 
 **Acceptance criterion:** Generating 1 million puzzles, the duplicate report and the split files are produced with a single command.
 

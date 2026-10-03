@@ -13,8 +13,8 @@ Each phase has its own folder under `phases/` with two files:
 | 1 | [`water_sort_core`](phases/phase-1-core/PLAN.md) | [prompt](phases/phase-1-core/START_PROMPT.md) | 0 | done (2026-10-02) |
 | 2 | [`uniform_water_sort`](phases/phase-2-uniform/PLAN.md) | [prompt](phases/phase-2-uniform/START_PROMPT.md) | 1 | done (2026-10-02) |
 | 3 | [`turan_water_sort`](phases/phase-3-turan/PLAN.md) | [prompt](phases/phase-3-turan/START_PROMPT.md) | 1, 2 | done (2026-10-02); follow-up done: difficulty tiers, two new Turan strategies, default `ReverseSearch` (D16) |
-| 4 | [Dataset and storage](phases/phase-4-dataset/PLAN.md) | [prompt](phases/phase-4-dataset/START_PROMPT.md) | 2, 3 | not started — **next** |
-| 5 | [Python binding and Gymnasium env](phases/phase-5-python/PLAN.md) | [prompt](phases/phase-5-python/START_PROMPT.md) | 1–4 | not started |
+| 4 | [Dataset and storage](phases/phase-4-dataset/PLAN.md) | [prompt](phases/phase-4-dataset/START_PROMPT.md) | 2, 3 | done (2026-10-03) |
+| 5 | [Python binding and Gymnasium env](phases/phase-5-python/PLAN.md) | [prompt](phases/phase-5-python/START_PROMPT.md) | 1–4 | not started — **next** |
 | 6 | [Web UI (WASM)](phases/phase-6-web/PLAN.md) | [prompt](phases/phase-6-web/START_PROMPT.md) | 1–3, 5 | not started |
 | 7 | [JEPA preparation](phases/phase-7-jepa/PLAN.md) | [prompt](phases/phase-7-jepa/START_PROMPT.md) | 4, 5 | not started |
 
