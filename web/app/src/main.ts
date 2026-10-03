@@ -2,8 +2,9 @@ import './style.css';
 import * as wasm from './wasm';
 import { loadWasm } from './wasm';
 import { renderBoard, shakeTube } from './ui/board';
-import { createControls, strategySpec, wasmParams, type GenSettings } from './ui/controls';
+import { createControls, strategySpec, type GenSettings } from './ui/controls';
 import { copyText, h } from './ui/dom';
+import { GenerationWorker } from './generation';
 
 /** The page state. All game logic is in `session` (wasm); this only tracks the selection. */
 class App {
@@ -18,7 +19,8 @@ class App {
   readonly moves = h('span', { class: 'moves', id: 'moves' }, '0');
   readonly undo = h('button', { id: 'undo' }, 'Undo');
   readonly restart = h('button', { id: 'restart' }, 'Restart');
-  readonly controls = createControls((s) => this.newPuzzle(s));
+  readonly controls = createControls((s) => void this.newPuzzle(s));
+  readonly worker = new GenerationWorker();
 
   mount(root: HTMLElement): void {
     const labels = h('input', { type: 'checkbox', id: 'labels' });
@@ -51,16 +53,41 @@ class App {
     );
   }
 
-  newPuzzle(s: GenSettings): void {
-    const params = wasmParams(s);
+  /** Generates in the worker; the page stays responsive and shows a spinner. */
+  async newPuzzle(s: GenSettings, seed?: string): Promise<boolean> {
+    return this.request(
+      {
+        kind: 'generate',
+        generator: s.generator,
+        params: [s.nColors, s.capacity, s.nEmpty],
+        seed,
+        strategy: strategySpec(s),
+        layout: s.layout,
+        tier: s.tier === 'any' ? undefined : s.tier,
+      },
+      'Generating',
+    );
+  }
+
+  async request(req: Parameters<GenerationWorker['run']>[0], label: string): Promise<boolean> {
+    this.setStatus('');
+    this.status.replaceChildren(h('span', { class: 'spinner' }), ` ${label}…`);
+    this.setBusy(true);
     try {
-      const tier = s.tier === 'any' ? undefined : s.tier;
-      this.load(wasm.generate(s.generator, params, undefined, strategySpec(s), s.layout, tier));
+      const { json } = await this.worker.run(req);
+      this.load(wasm.Puzzle.from_json(json));
+      return true;
     } catch (e) {
-      this.setStatus(`Could not generate: ${(e as Error).message}`, true);
+      const msg = (e as Error).message;
+      if (msg !== 'cancelled by a newer request') this.setStatus(`${label} failed: ${msg}`, true);
+      return false;
     } finally {
-      params.free();
+      if (!this.worker.busy) this.setBusy(false);
     }
+  }
+
+  setBusy(busy: boolean): void {
+    document.body.classList.toggle('busy', busy);
   }
 
   load(puzzle: wasm.Puzzle): void {
@@ -152,7 +179,7 @@ async function main(): Promise<void> {
   await loadWasm();
   const app = new App();
   app.mount(root);
-  app.newPuzzle(app.controls.get());
+  await app.newPuzzle(app.controls.get());
 }
 
 void main();

@@ -151,7 +151,8 @@ fn run(
 /// the generator picks a fresh seed (OS entropy for uniform, the time seed for Turan, D1), which
 /// is recorded in the puzzle either way. `strategy` (Turan only) is a strategy spec such as
 /// `"scramble"` or `"scramble(steps=40)"`; `layout` is `"standard"` (default) or
-/// `"distributed"`; `tier` is `"easy"`, `"medium"`, `"hard"` or `"any"` (default).
+/// `"distributed"`; `tier` (uniform only) is `"easy"`, `"medium"`, `"hard"` or `"any"`
+/// (default).
 ///
 /// # Errors
 ///
@@ -175,7 +176,15 @@ pub fn generate(
             p.n_colors, p.capacity, p.n_empty
         )));
     }
-    let cfg = web_config(&p, layout, parse_tier(tier)?)?;
+    let tier = parse_tier(tier)?;
+    if tier.is_some() && matches!(g, AnyGenerator::Turan(_)) {
+        // The cut points come from uniform's `opt_moves` distribution (D16); several Turan
+        // strategies rarely or never reach some bands (D20).
+        return Err(JsError::new(
+            "difficulty tiers only apply to the uniform generator",
+        ));
+    }
+    let cfg = web_config(&p, layout, tier)?;
     run(g, layout, p, seed, &cfg)
 }
 

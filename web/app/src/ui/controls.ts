@@ -99,6 +99,7 @@ export function createControls(onNew: (s: GenSettings) => void): Controls {
   const newButton = h('button', { id: 'new-puzzle', class: 'primary' }, 'New puzzle');
 
   const strategyField = h('label', {}, 'strategy ', strategy);
+  const tierField = h('label', {}, 'difficulty ', tier);
   const stepsField = h('label', {}, 'steps ', steps);
 
   let current: GenSettings = { ...DEFAULT_SETTINGS };
@@ -123,6 +124,9 @@ export function createControls(onNew: (s: GenSettings) => void): Controls {
     const colors: [string, string][] = [];
     for (let c = row.min_colors; c <= row.max_colors; c++) colors.push([String(c), String(c)]);
     current.nColors = Number(options(nColors, colors, String(current.nColors)));
+    // Tier cut points come from uniform's opt_moves distribution (D16, D20).
+    tierField.hidden = isTuran;
+    if (isTuran) current.tier = 'any';
     tier.value = current.tier;
   }
 
@@ -159,7 +163,7 @@ export function createControls(onNew: (s: GenSettings) => void): Controls {
     h('label', {}, 'colors ', nColors),
     h('label', {}, 'capacity ', capacity),
     h('label', {}, 'empty ', nEmpty),
-    h('label', {}, 'difficulty ', tier),
+    tierField,
     newButton,
   );
   return {

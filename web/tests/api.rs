@@ -131,6 +131,8 @@ fn tiers_and_layouts() {
         assert_eq!(z.config_json().unwrap(), cfg);
     }
     assert!(generate("uniform", &p, None, None, None, Some("impossible".into())).is_err());
+    assert!(generate("turan", &p, None, None, None, Some("hard".into())).is_err());
+    assert!(generate("turan", &p, None, None, None, Some("any".into())).is_ok());
     assert!(generate("turan", &p, None, Some("pour_walk".into()), None, None).is_err());
     assert_eq!(strategies("standard").unwrap()[0], "reverse_search");
     assert_eq!(
