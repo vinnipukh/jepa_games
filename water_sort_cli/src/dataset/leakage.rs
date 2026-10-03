@@ -1,9 +1,11 @@
 //! `leakage`: puzzles shared between two datasets (e.g. uniform's test split and Turan's train
 //! split), by canonical form, and optionally a copy of one dataset without them.
 //!
-//! Within one dataset the split rule makes the overlap between splits zero by construction.
-//! Across generators the same puzzle can occur in both, and must be removed from the training
-//! side for a clean cross-evaluation.
+//! The split is the same function of the canonical hash in every dataset, so with equal split
+//! ranges two different splits never share a puzzle, within one dataset or across generators.
+//! Overlap appears when a side uses all its records (e.g. training on a whole Turan dataset and
+//! testing on uniform's test split), the same split on both sides, or different ranges; such
+//! records must be removed from the training side for a clean cross-evaluation (D17).
 
 use std::fmt::Write as _;
 use std::io;

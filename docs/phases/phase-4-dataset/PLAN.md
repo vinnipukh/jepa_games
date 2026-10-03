@@ -63,6 +63,8 @@ water_sort_cli leakage --a data/uniform_c6k4e2 --a-split test --b data/turan_c6k
 
 Reports the number and fraction of shared canonical hashes. Within one generator the split rule makes this zero by construction. Across generators, overlap is expected for small configurations and must be removed for clean cross-evaluation: `--exclude-from` drops those records from the train set.
 
+**Implementation note (D17):** the split rule is the same function of the canonical hash in every dataset, so with equal split ranges the test split of one generator and the train split of another can never share a puzzle either (measured: 0 at 4 × 4 × 2 and 6 × 4 × 2). Overlap appears when one side uses all its records (`--b-split all`, e.g. training on a whole Turan dataset), the same split on both sides, or different ranges: 188 of 4593 Turan 4 × 4 × 2 puzzles are in uniform's test split. `--exclude-from` handles those cases.
+
 ## Other subcommands
 
 - `validate <dir>`: re-check every record (replay the solution to solved in `opt_moves` moves, recompute `canonical_hash`, decode the puzzle code and compare it with `state`, re-generate from `seed` and compare; that last check is sampled, by default 1 %, because it re-runs the solver). Run in CI on a small fixture dataset.
@@ -70,13 +72,13 @@ Reports the number and fraction of shared canonical hashes. Within one generator
 
 ## Tasks
 
-1. [ ] Record struct + serde + JSONL writer
-2. [ ] Parquet writer (arrow schema above)
-3. [ ] `generate` with seed derivation, ordered parallel writer, manifest
-4. [ ] Dedup + report
-5. [ ] Split column + split files
-6. [ ] `leakage`, `validate`
-7. [ ] 1M-record run; record wall time and file sizes in the manifest/report
+1. [x] Record struct + serde + JSONL writer
+2. [x] Parquet writer (arrow schema above)
+3. [x] `generate` with seed derivation, ordered parallel writer, manifest
+4. [x] Dedup + report
+5. [x] Split column + split files
+6. [x] `leakage`, `validate`
+7. [x] 1M-record run; record wall time and file sizes in the manifest/report ([`reports/dataset_phase4.md`](../../../reports/dataset_phase4.md), D18)
 
 ## Acceptance
 
