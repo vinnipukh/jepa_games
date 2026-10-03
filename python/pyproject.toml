@@ -6,7 +6,7 @@ build-backend = "maturin"
 name = "jepa_water_sort"
 description = "Water Sort puzzles (Rust core via PyO3), a Gymnasium environment and a trajectory logger"
 requires-python = ">=3.10"
-license = "MIT OR Apache-2.0"
+license = "MIT"
 classifiers = [
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",
