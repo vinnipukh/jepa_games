@@ -50,7 +50,7 @@ GitHub Pages deployed by a workflow on pushes to `main` (optional, needs a publi
 5. [x] Completion screen + stars + solution replay
 6. [x] Seed / code open, shareable URL
 7. [x] Trajectory export (optional) + Python importer in `logger.py`
-8. [ ] Pages deploy (optional): not set up; the repo is private, so it is the user's decision (D20)
+8. [ ] Pages deploy (optional): workflow ready (`.github/workflows/pages.yml`, manual only); Pages itself left for later by the user (D20)
 
 ## Tests
 

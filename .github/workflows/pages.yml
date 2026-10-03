@@ -1,0 +1,75 @@
+# Builds the web game (web/app/dist) and deploys it to GitHub Pages.
+#
+# Not active yet (D20): it only runs when started by hand (Actions -> "Web game (Pages)" ->
+# Run workflow). Every run also keeps the built site as the `web-game` artifact, so it can be
+# downloaded and served from any static host. The deploy job needs Pages enabled with
+# "GitHub Actions" as the source (Settings -> Pages); on a private repo that may need a paid
+# plan. To deploy on every push to main once Pages is on, add `push: branches: [main]` below.
+name: Web game (Pages)
+
+on:
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: Deploy to GitHub Pages (needs Pages enabled); otherwise only build the artifact
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install toolchain from rust-toolchain.toml and the wasm32 target
+        run: |
+          rustup toolchain install
+          rustup target add wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - name: wasm-bindgen version from Cargo.lock
+        id: wb
+        run: echo "version=$(scripts/wasm-bindgen-version.sh)" >> "$GITHUB_OUTPUT"
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen@${{ steps.wb.outputs.version }}
+      - run: web/build.sh
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/app/package-lock.json
+      - name: Build the static site
+        working-directory: web/app
+        run: |
+          npm ci
+          npm run build
+          touch dist/.nojekyll
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-game
+          path: web/app/dist
+          retention-days: 14
+      - if: inputs.deploy
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: web/app/dist
+
+  deploy:
+    if: inputs.deploy
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
