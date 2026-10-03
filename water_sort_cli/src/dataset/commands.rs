@@ -234,12 +234,19 @@ pub fn run_dedup_report(args: &DedupReportArgs) -> io::Result<()> {
     Ok(())
 }
 
-/// `train`, `val`, `test`, or `all` (`None`).
-pub fn parse_split_selection(s: &str) -> Result<Option<Split>, String> {
-    if s == "all" {
-        Ok(None)
-    } else {
-        s.parse().map(Some)
+/// A split, or every split: `train`, `val`, `test` or `all`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SplitSelection(pub Option<Split>);
+
+impl core::str::FromStr for SplitSelection {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, String> {
+        if s == "all" {
+            Ok(Self(None))
+        } else {
+            s.parse().map(|x| Self(Some(x)))
+        }
     }
 }
 
@@ -249,12 +256,12 @@ pub struct LeakageArgs {
     #[arg(long)]
     pub a: PathBuf,
     /// `train`, `val`, `test` or `all`.
-    #[arg(long, value_parser = parse_split_selection, default_value = "test")]
-    pub a_split: Option<Split>,
+    #[arg(long, default_value = "test")]
+    pub a_split: SplitSelection,
     #[arg(long)]
     pub b: PathBuf,
-    #[arg(long, value_parser = parse_split_selection, default_value = "train")]
-    pub b_split: Option<Split>,
+    #[arg(long, default_value = "train")]
+    pub b_split: SplitSelection,
     /// Write a copy of this side's dataset without its shared records (only those in its
     /// selected split) to `--out`.
     #[arg(long, value_enum, requires = "out")]
@@ -270,11 +277,11 @@ pub struct LeakageArgs {
 pub fn run_leakage(args: &LeakageArgs) -> io::Result<()> {
     let a = Selection {
         dir: &args.a,
-        split: args.a_split,
+        split: args.a_split.0,
     };
     let b = Selection {
         dir: &args.b,
-        split: args.b_split,
+        split: args.b_split.0,
     };
     let (l, shared) = leakage(a, b)?;
     let mut md = report_markdown_leakage(a, b, &l);
@@ -335,8 +342,8 @@ mod tests {
         assert_eq!(parse_seed("42"), Ok(42));
         assert!(parse_seed("0xg").is_err());
         assert!(parse_seed("-1").is_err());
-        assert_eq!(parse_split_selection("all"), Ok(None));
-        assert_eq!(parse_split_selection("val"), Ok(Some(Split::Val)));
-        assert!(parse_split_selection("dev").is_err());
+        assert_eq!("all".parse(), Ok(SplitSelection(None)));
+        assert_eq!("val".parse(), Ok(SplitSelection(Some(Split::Val))));
+        assert!("dev".parse::<SplitSelection>().is_err());
     }
 }

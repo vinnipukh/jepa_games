@@ -67,6 +67,90 @@ mod tests {
     use clap::CommandFactory;
 
     #[test]
+    fn dataset_commands_parse() {
+        use water_sort_cli::dataset::Split;
+        use water_sort_cli::dataset::commands::SplitSelection;
+        let cli = Cli::parse_from([
+            "water_sort_cli",
+            "generate",
+            "--count",
+            "1e6",
+            "--colors",
+            "6",
+            "--master-seed",
+            "0x88f5e8812f916163",
+            "--created-at",
+            "2026-10-03T00:00:00Z",
+            "--split-files",
+            "--out",
+            "data/x",
+        ]);
+        let Command::Generate(a) = cli.command else {
+            panic!("expected generate")
+        };
+        assert_eq!(
+            (a.count, a.master_seed),
+            (1_000_000, Some(0x88f5_e881_2f91_6163))
+        );
+        let opts = a.options().unwrap();
+        assert_eq!(opts.created_at, 1_790_985_600_000_000_000);
+        assert!(opts.split_files && opts.supported);
+        let cli = Cli::parse_from([
+            "water_sort_cli",
+            "generate",
+            "--count",
+            "5",
+            "--colors",
+            "12",
+            "--out",
+            "x",
+        ]);
+        let Command::Generate(a) = cli.command else {
+            panic!("expected generate")
+        };
+        assert!(a.options().is_err(), "12 x 4 x 2 is unsupported");
+        let cli = Cli::parse_from([
+            "water_sort_cli",
+            "leakage",
+            "--a",
+            "x",
+            "--b",
+            "y",
+            "--b-split",
+            "all",
+            "--exclude-from",
+            "b",
+            "--out",
+            "z",
+        ]);
+        let Command::Leakage(a) = cli.command else {
+            panic!("expected leakage")
+        };
+        assert_eq!(a.a_split, SplitSelection(Some(Split::Test)));
+        assert_eq!(a.b_split, SplitSelection(None));
+        assert!(
+            Cli::try_parse_from([
+                "water_sort_cli",
+                "leakage",
+                "--a",
+                "x",
+                "--b",
+                "y",
+                "--exclude-from",
+                "b"
+            ])
+            .is_err()
+        );
+        let cli = Cli::parse_from(["water_sort_cli", "validate", "d", "--regen-rate", "1"]);
+        let Command::Validate(a) = cli.command else {
+            panic!("expected validate")
+        };
+        assert!((a.regen_rate - 1.0).abs() < f64::EPSILON);
+        let cli = Cli::parse_from(["water_sort_cli", "dedup-report", "d"]);
+        assert!(matches!(cli.command, Command::DedupReport(_)));
+    }
+
+    #[test]
     fn cli_is_well_formed() {
         Cli::command().debug_assert();
         let cli = Cli::parse_from([
