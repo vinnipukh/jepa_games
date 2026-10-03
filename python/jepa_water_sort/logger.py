@@ -12,8 +12,9 @@ encoding (row-major, bottom to top, 255 = empty); the one-hot observation is reb
 
 Sources: ``optimal`` (solver solution), ``random`` (uniform over legal moves), ``epsilon``
 (optimal with probability 1 − ε, else random legal, re-solving after a deviation), ``greedy``
-(one-step heuristic lookahead) and ``human`` (imported play, Phase 6). Collection from a
-dataset uses only the puzzles of one split, so trajectory splits inherit the puzzle split.
+(one-step heuristic lookahead) and ``human`` (play exported from the web game, Phase 6, read
+by :func:`import_web_exports`). Collection from a dataset uses only the puzzles of one split,
+so trajectory splits inherit the puzzle split.
 
 A directory holds ``shard-00000.parquet``, ... (about ``shard_size`` transitions each, never
 splitting an episode) and ``manifest.json`` (source, ε, policy seed, dataset manifest hash,
@@ -46,6 +47,8 @@ DEFAULT_SHARD_SIZE = 1_000_000
 ROW_GROUP_SIZE = 65_536
 SOURCES = ("optimal", "random", "epsilon", "greedy", "human")
 TOOL_VERSION = f"jepa_water_sort {__version__}"
+HUMAN_EXPORT_FORMAT = "jepa_water_sort.human_trajectory"
+HUMAN_EXPORT_VERSIONS = (1,)
 
 
 def transition_schema(params: Params) -> pa.Schema:
@@ -317,7 +320,7 @@ def collect(
     record's stored solution, the other sources play with their policy.
     """
     if source == "human":
-        raise ValueError("human trajectories are imported with import_human, not collected")
+        raise ValueError("human trajectories are imported (import_web_exports), not collected")
     if source == "epsilon" and epsilon is None:
         raise ValueError("the epsilon source needs epsilon")
     ds = dataset if isinstance(dataset, Dataset) else Dataset(dataset)
@@ -363,6 +366,138 @@ def import_human(
             log.log_episode(transitions, g.get("generator_id", "unknown"), None,
                             g.get("record_id"), g.get("split"))
     return json.loads((Path(out_dir) / "manifest.json").read_text(encoding="utf-8"))
+
+
+def read_web_export(source: str | Path | dict[str, Any]) -> dict[str, Any]:
+    """Loads a web-game trajectory export (a path or the parsed JSON) and checks its format."""
+    export = source if isinstance(source, dict) else json.loads(
+        Path(source).read_text(encoding="utf-8"))
+    if export.get("format") != HUMAN_EXPORT_FORMAT:
+        raise ValueError(f"not a {HUMAN_EXPORT_FORMAT} export")
+    if export.get("format_version") not in HUMAN_EXPORT_VERSIONS:
+        raise ValueError(f"unsupported export format_version {export.get('format_version')!r}")
+    return export
+
+
+def human_segments(export: dict[str, Any]) -> list[tuple[State, list[int]]]:
+    """Replays every row of a web export through the core rules and splits the play into
+    segments of pours (legal or illegal) between undos and restarts: ``(start state, actions)``.
+
+    Raises ``ValueError`` if any recorded state, unit count or move count disagrees with the
+    replay, so an import never trusts the export's states.
+    """
+    puzzle = export["puzzle"]
+    initial = State.from_code(puzzle["puzzle_code"])
+    p = puzzle["params"]
+    if initial.params != Params(p["n_colors"], p["capacity"], p["n_empty"]):
+        raise ValueError("puzzle params do not match the puzzle code")
+    if f"{_native.canonical_hash(initial):016x}" != puzzle["canonical_hash"]:
+        raise ValueError("canonical hash does not match the puzzle code")
+    segments: list[tuple[State, list[int]]] = []
+    start, actions = initial, []
+    current, history, moves = initial, [], 0
+
+    def close(next_start: State) -> None:
+        nonlocal start, actions
+        if actions:
+            segments.append((start, actions))
+        start, actions = next_start, []
+
+    for i, row in enumerate(export["rows"]):
+        where = f"row {i} ({row.get('event')})"
+        if row["step"] != i:
+            raise ValueError(f"{where}: step is {row['step']}")
+        if bytes(row["state"]) != current.to_bytes():
+            raise ValueError(f"{where}: state does not follow from the previous row")
+        event = row["event"]
+        if event in ("pour", "illegal"):
+            action = int(row["action"])
+            try:
+                nxt, units = _native.step(current, action)
+                legal = True
+            except ValueError:
+                nxt, units, legal = current, 0, False
+            if legal != (event == "pour") or bool(row["illegal"]) == legal:
+                raise ValueError(f"{where}: legality differs from the core rules")
+            if units != row["units_moved"]:
+                raise ValueError(f"{where}: units_moved differs from the core rules")
+            if legal:
+                history.append(current)
+                moves += 1
+            actions.append(action)
+            current = nxt
+        elif event == "undo":
+            if not history:
+                raise ValueError(f"{where}: nothing to undo")
+            current = history.pop()
+            close(current)
+        elif event == "restart":
+            current, history = initial, []
+            close(current)
+        else:
+            raise ValueError(f"{where}: unknown event")
+        if bytes(row["next_state"]) != current.to_bytes():
+            raise ValueError(f"{where}: next_state differs from the core rules")
+        if row["moves_counted"] != moves:
+            raise ValueError(f"{where}: moves_counted is {row['moves_counted']}, expected {moves}")
+    close(current)
+    if export["moves_counted"] != moves:
+        raise ValueError("moves_counted does not match the rows")
+    return segments
+
+
+def import_web_exports(
+    exports: Iterable[str | Path | dict[str, Any]],
+    out_dir: str | Path,
+    *,
+    shard_size: int = DEFAULT_SHARD_SIZE,
+) -> dict[str, Any]:
+    """Imports web-game exports (``Session.export_trajectory()``) as ``human`` trajectories.
+
+    Every row is replayed through the core rules (:func:`human_segments`). Each run of pours
+    between undos and restarts becomes one episode of effective ``(state, action, next_state)``
+    transitions; illegal pours are kept and flagged, undo and restart jumps are not
+    transitions. There is no move limit (the game has none), so ``truncated`` is always false.
+    All exports must have the same params.
+    """
+    loaded = [read_web_export(e) for e in exports]
+    if not loaded:
+        raise ValueError("no exports to import")
+    params_of = [e["puzzle"]["params"] for e in loaded]
+    if any(p != params_of[0] for p in params_of):
+        raise ValueError("exports have different params; import them into separate directories")
+    p = params_of[0]
+    params = Params(p["n_colors"], p["capacity"], p["n_empty"])
+    sessions: list[dict[str, Any]] = []
+    # Verify everything before writing anything.
+    segmented = [(e, human_segments(e)) for e in loaded]
+    log = TrajectoryLogger(out_dir, params, "human", shard_size=shard_size, extra={
+        "episode_rule": "one episode per run of pours between undos and restarts",
+        "sessions": sessions,
+    })
+    for export, segments in segmented:
+        puzzle = export["puzzle"]
+        first = log.episodes
+        for start, actions in segments:
+            transitions = replay_actions(start, actions)
+            log.log_episode(transitions, puzzle["generator_id"] or "unknown",
+                            int(puzzle["canonical_hash"], 16))
+        sessions.append({
+            "session_id": export["session_id"],
+            "puzzle_id": puzzle["puzzle_id"],
+            "puzzle_code": puzzle["puzzle_code"],
+            "seed": puzzle["seed"],
+            "generator_variant": puzzle["variant"],
+            "opt_moves": puzzle["opt_moves"],
+            "first_episode": first,
+            "episodes": log.episodes - first,
+            "events": len(export["rows"]),
+            "moves_counted": export["moves_counted"],
+            "solved": export["solved"],
+            "stars": export["stars"],
+        })
+    log.close()
+    return read_manifest(out_dir)
 
 
 def read_manifest(trajectory_dir: str | Path) -> dict[str, Any]:
@@ -426,6 +561,10 @@ def main(argv: list[str] | None = None) -> None:
     c.add_argument("--dead-end-check", action="store_true")
     c.add_argument("--shard-size", type=int, default=DEFAULT_SHARD_SIZE)
     c.add_argument("--out", required=True)
+    i = sub.add_parser("import-human", help="import web-game trajectory exports (JSON)")
+    i.add_argument("exports", nargs="+")
+    i.add_argument("--shard-size", type=int, default=DEFAULT_SHARD_SIZE)
+    i.add_argument("--out", required=True)
     e = sub.add_parser("export-npz", help="write a trajectory directory to one .npz")
     e.add_argument("trajectories")
     e.add_argument("--out", required=True)
@@ -437,6 +576,10 @@ def main(argv: list[str] | None = None) -> None:
                     dead_end_check=args.dead_end_check, shard_size=args.shard_size)
         print(f"{m['episodes']} episodes, {m['transitions']} transitions, "
               f"{len(m['shards'])} shards in {args.out}")
+    elif args.command == "import-human":
+        m = import_web_exports(args.exports, args.out, shard_size=args.shard_size)
+        print(f"{len(m['sessions'])} sessions, {m['episodes']} episodes, "
+              f"{m['transitions']} transitions in {args.out}")
     else:
         print(export_npz(args.trajectories, args.out))
 

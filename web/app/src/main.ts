@@ -26,6 +26,7 @@ class App {
   readonly moves = h('span', { class: 'moves', id: 'moves' }, '0');
   readonly undo = h('button', { id: 'undo' }, 'Undo');
   readonly restart = h('button', { id: 'restart' }, 'Restart');
+  readonly exportButton = h('button', { id: 'export', class: 'small', title: 'Download this play session (pours, undos, restarts) as JSON' }, 'Export trajectory');
   readonly controls = createControls((s) => void this.newPuzzle(s));
   readonly seedInput = h('input', { id: 'open-seed', placeholder: 'seed (hex)', spellcheck: 'false', 'aria-label': 'seed' });
   readonly codeInput = h('input', { id: 'open-code', placeholder: 'puzzle code or share link', spellcheck: 'false', 'aria-label': 'puzzle code' });
@@ -42,6 +43,7 @@ class App {
       this.selected = null;
       this.render();
     });
+    this.exportButton.addEventListener('click', () => this.exportTrajectory());
     this.restart.addEventListener('click', () => {
       this.session?.restart();
       this.selected = null;
@@ -67,6 +69,7 @@ class App {
         this.undo,
         this.restart,
         h('label', { class: 'small' }, labels, ' color numbers'),
+        this.exportButton,
       ),
       this.status,
       this.complete,
@@ -204,12 +207,32 @@ class App {
       this.complete.replaceChildren();
       return;
     }
+    const exportButton = h('button', { id: 'export-complete' }, 'Export trajectory');
+    exportButton.addEventListener('click', () => this.exportTrajectory());
     this.complete.replaceChildren(
       renderComplete(p, s, {
         onReplay: () => this.startReplay(),
         onNext: () => void this.newPuzzle(this.controls.get()),
+        extra: [exportButton],
       }),
     );
+  }
+
+  /** Downloads the session in the Phase 5.3 row format (source "human"). Nothing is uploaded. */
+  exportTrajectory(): void {
+    const s = this.session;
+    const p = this.puzzle;
+    if (!s || !p) return;
+    const json = s.export_trajectory();
+    const id = (JSON.parse(json) as { session_id: string }).session_id;
+    const a = h('a', {
+      href: URL.createObjectURL(new Blob([json], { type: 'application/json' })),
+      download: `water-sort-${p.puzzle_code}-${id.slice(0, 8)}.json`,
+    });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }
 
   /** Replays the optimal solution through a fresh core Session, one pour per tick. */
@@ -264,6 +287,7 @@ class App {
     this.moves.textContent = String(game.moves_counted());
     this.undo.disabled = !game.can_undo() || game.is_solved();
     this.restart.disabled = game.is_solved();
+    this.exportButton.disabled = game.n_events() === 0;
     if (!this.replay) this.renderComplete();
   }
 

@@ -21,6 +21,7 @@
 mod generate;
 mod puzzle;
 mod session;
+mod trajectory;
 
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
@@ -32,6 +33,7 @@ pub use generate::{
 };
 pub use puzzle::{Puzzle, from_code};
 pub use session::Session;
+pub use trajectory::{FORMAT as TRAJECTORY_FORMAT, FORMAT_VERSION as TRAJECTORY_FORMAT_VERSION};
 
 /// Crate version, e.g. for the trajectory export's `tool_version`.
 #[wasm_bindgen]

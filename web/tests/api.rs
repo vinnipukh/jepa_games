@@ -198,3 +198,49 @@ fn tampered_json_is_rejected() {
     v["solution"].as_array_mut().unwrap().pop();
     assert!(Puzzle::from_json(&v.to_string()).is_err());
 }
+
+#[wasm_bindgen_test]
+fn trajectory_export_records_every_event() {
+    let puzzle = uniform_3x3("3");
+    let solution = puzzle.solution().unwrap();
+    let mut s = Session::new(&puzzle);
+    assert_eq!(s.pour(0, 0), 0); // illegal
+    assert_eq!(s.pour(9, 0), 0); // out of range: not a recordable action
+    play(&mut s, &solution[..1]);
+    assert!(s.undo());
+    s.restart();
+    play(&mut s, &solution);
+    assert_eq!(s.n_events(), 4 + solution.len());
+    let v: serde_json::Value = serde_json::from_str(&s.export_trajectory().unwrap()).unwrap();
+    assert_eq!(v["format"], water_sort_web::TRAJECTORY_FORMAT);
+    assert_eq!(v["source"], "human");
+    assert_eq!(v["session_id"].as_str().unwrap().len(), 16);
+    assert_eq!(v["puzzle"]["puzzle_code"], puzzle.puzzle_code());
+    assert_eq!(v["puzzle"]["seed"], "0000000000000003");
+    assert_eq!(v["puzzle"]["puzzle_id"], puzzle.puzzle_id());
+    assert_eq!(v["moves_counted"], solution.len() + 1);
+    assert_eq!(v["solved"], true);
+    let rows = v["rows"].as_array().unwrap();
+    let events: Vec<&str> = rows.iter().map(|r| r["event"].as_str().unwrap()).collect();
+    assert_eq!(&events[..4], ["illegal", "pour", "undo", "restart"]);
+    assert!(events[4..].iter().all(|e| *e == "pour"));
+    let cells = |r: &serde_json::Value, k: &str| -> Vec<u8> {
+        serde_json::from_value(r[k].clone()).unwrap()
+    };
+    assert_eq!(cells(&rows[0], "state"), puzzle.cells());
+    assert_eq!(cells(&rows[0], "state"), cells(&rows[0], "next_state"));
+    assert_eq!(rows[0]["illegal"], true);
+    assert_eq!(rows[1]["action"], solution[0]);
+    assert!(rows[2]["action"].is_null());
+    assert_eq!(cells(&rows[2], "next_state"), puzzle.cells());
+    for (i, w) in rows.windows(2).enumerate() {
+        assert_eq!(cells(&w[0], "next_state"), cells(&w[1], "state"), "row {i}");
+        assert_eq!(w[1]["step"], i + 1);
+    }
+    let last = rows.last().unwrap();
+    assert_eq!(
+        (last["solved"].clone(), last["done"].clone()),
+        (true.into(), true.into())
+    );
+    assert_eq!(last["moves_counted"], solution.len() + 1);
+}

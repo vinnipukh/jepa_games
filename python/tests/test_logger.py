@@ -158,6 +158,86 @@ def test_import_human(tmp_path):
     assert table.column("puzzle_id")[0].as_py() == f"uniform:{p.canonical_hash:016x}"
 
 
+WEB_EXPORT = "python/tests/fixtures/human_export_uniform_4x4_2.json"
+
+
+@pytest.fixture
+def web_export(repo):
+    """Exported from the web game (Phase 6): an illegal pour, a pour, undo, a pour, restart,
+    then the optimal solution."""
+    return json.loads((repo / WEB_EXPORT).read_text(encoding="utf-8"))
+
+
+def test_web_export_opens_the_same_puzzle_as_python(web_export):
+    pz = web_export["puzzle"]
+    p = w.generate(pz["generator_id"], tuple(pz["params"].values()), seed=int(pz["seed"], 16),
+                   config=w.GenConfig.from_json(json.dumps(pz["config"])))
+    assert p.puzzle_code == pz["puzzle_code"]
+    assert f"{p.canonical_hash:016x}" == pz["canonical_hash"]
+    assert p.opt_moves == pz["opt_moves"] and p.generator_variant == pz["variant"]
+    assert w.stars(web_export["moves_counted"], p.opt_moves) == web_export["stars"]
+
+
+def test_import_web_exports(web_export, tmp_path):
+    segments = logger.human_segments(web_export)
+    # illegal + pour | undo | pour | restart | solution
+    assert [len(a) for _, a in segments] == [2, 1, web_export["puzzle"]["opt_moves"]]
+    m = logger.import_web_exports([web_export, web_export], tmp_path / "h")
+    assert m["source"] == "human" and m["episodes"] == 6
+    assert m["solved_episodes"] == 2 and m["truncated_episodes"] == 0
+    assert m["illegal_transitions"] == 2
+    assert [s["first_episode"] for s in m["sessions"]] == [0, 3]
+    assert m["sessions"][0]["stars"] == web_export["stars"]
+    table = logger.read_transitions(tmp_path / "h")
+    check_transitions(table, w.Params(4, 4, 2))
+    assert table.num_rows == 2 * (3 + web_export["puzzle"]["opt_moves"])
+    assert set(table.column("puzzle_id").to_pylist()) == {web_export["puzzle"]["puzzle_id"]}
+    # The rows of every pour equal the export's rows.
+    pours = [r for r in web_export["rows"] if r["event"] in ("pour", "illegal")]
+    first = table.slice(0, len(pours)).to_pylist()
+    for got, row in zip(first, pours):
+        assert got["state"] == bytes(row["state"]) and got["next_state"] == bytes(row["next_state"])
+        assert got["action"] == row["action"] and got["illegal"] == row["illegal"]
+
+
+def test_import_human_cli(repo, tmp_path):
+    logger.main(["import-human", str(repo / WEB_EXPORT), "--out", str(tmp_path / "cli")])
+    assert logger.read_manifest(tmp_path / "cli")["episodes"] == 3
+
+
+@pytest.mark.parametrize("tamper", ["state", "next_state", "units", "moves", "illegal", "hash",
+                                    "format", "undo"])
+def test_web_export_tampering_is_rejected(web_export, tmp_path, tamper):
+    rows = web_export["rows"]
+    pour = next(i for i, r in enumerate(rows) if r["event"] == "pour")
+    if tamper == "state":
+        rows[pour]["state"][0] = (rows[pour]["state"][0] + 1) % 4
+    elif tamper == "next_state":
+        rows[pour]["next_state"] = rows[pour]["state"]
+    elif tamper == "units":
+        rows[pour]["units_moved"] += 1
+    elif tamper == "moves":
+        rows[pour]["moves_counted"] += 1
+    elif tamper == "illegal":
+        rows[0]["illegal"] = False
+    elif tamper == "hash":
+        web_export["puzzle"]["canonical_hash"] = "0" * 16
+    elif tamper == "format":
+        web_export["format_version"] = 99
+    elif tamper == "undo":
+        rows.insert(0, {**rows[0], "event": "undo", "action": None, "illegal": False})
+    with pytest.raises(ValueError):
+        logger.import_web_exports([web_export], tmp_path / "t")
+    assert not (tmp_path / "t" / "manifest.json").exists()
+
+
+def test_web_exports_with_different_params_are_rejected(web_export, tmp_path):
+    other = json.loads(json.dumps(web_export))
+    other["puzzle"]["params"]["n_empty"] = 1
+    with pytest.raises(ValueError, match="different params"):
+        logger.import_web_exports([web_export, other], tmp_path / "p")
+
+
 def test_export_npz_and_cli(uniform_ds, tmp_path):
     logger.main(["collect", "--dataset", str(uniform_ds.path), "--split", "val", "--source",
                  "epsilon", "--epsilon", "0.1", "--policy-seed", "0x2a", "--out",
