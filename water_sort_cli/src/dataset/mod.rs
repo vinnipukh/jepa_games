@@ -2,6 +2,7 @@
 //! ordered parallel writing, dedup, split, leakage check and validation.
 
 pub mod commands;
+pub mod dedup;
 pub mod generate;
 pub mod jsonl;
 pub mod manifest;

@@ -8,7 +8,7 @@
 
 use std::collections::BTreeMap;
 use std::fs::File;
-use std::io::{self, BufWriter};
+use std::io::{self, BufWriter, Write as _};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, sync_channel};
 use std::time::Instant;
@@ -16,6 +16,7 @@ use std::time::Instant;
 use rayon::prelude::*;
 use water_sort_core::{GenConfig, GenError, Params, splitmix64};
 
+use super::dedup::{Dedup, DedupCounts, Seen, canonical_encoding, report_markdown};
 use super::jsonl::JsonlWriter;
 use super::manifest::{
     DedupSummary, Failure, FileEntry, Format, GeneratorInfo, MANIFEST, Manifest, SplitInfo,
@@ -26,6 +27,11 @@ use super::record::{Record, RunInfo};
 use super::split::{Split, SplitRanges};
 use super::time::{format_rfc3339, now_unix_nanos};
 use crate::args::GenSpec;
+
+/// Dropped duplicates: `dropped_id,kept_id,canonical_hash` per line.
+pub const DROPPED_FILE: &str = "duplicates.csv";
+/// The duplicate / split / tier report.
+pub const REPORT_FILE: &str = "dedup_report.md";
 
 /// Indices per parallel task.
 pub const CHUNK: u64 = 256;
@@ -69,7 +75,8 @@ pub struct GenerateOptions {
 
 /// The outcome of one index.
 enum Outcome {
-    Record(Box<Record>),
+    /// The record and its exact canonical encoding (for dedup).
+    Record(Box<Record>, Vec<u8>),
     Failed(Failure),
 }
 
@@ -84,7 +91,10 @@ fn generate_chunk(
         .map(|i| {
             let seed = record_seed(opts.master_seed, i);
             match opts.spec.generate(&opts.params, seed, &opts.gen_config) {
-                Ok(g) => Ok(Outcome::Record(Box::new(Record::new(i, &g, run)))),
+                Ok(g) => Ok(Outcome::Record(
+                    Box::new(Record::new(i, &g, run)),
+                    canonical_encoding(&g.state),
+                )),
                 Err(e @ GenError::TooManyAttempts { .. }) => Ok(Outcome::Failed(Failure {
                     record_id: i,
                     seed,
@@ -136,9 +146,12 @@ struct OutFile {
     records: u64,
 }
 
-/// The writer thread's state: files, counts and the record log.
+/// The writer thread's state: files, dedup, counts and the dropped-record log.
 struct Writer {
     files: Vec<OutFile>,
+    dedup: Dedup,
+    dedup_counts: DedupCounts,
+    dropped: BufWriter<File>,
     failures: Vec<Failure>,
     generated: u64,
     split_counts: BTreeMap<Split, u64>,
@@ -161,8 +174,13 @@ impl Writer {
             split: None,
             records: 0,
         }];
+        let mut dropped = BufWriter::new(File::create(dir.join(DROPPED_FILE))?);
+        writeln!(dropped, "dropped_id,kept_id,canonical_hash")?;
         Ok(Self {
             files,
+            dedup: Dedup::new(),
+            dedup_counts: DedupCounts::default(),
+            dropped,
             failures: Vec::new(),
             generated: 0,
             split_counts: Split::ALL.iter().map(|&s| (s, 0)).collect(),
@@ -174,7 +192,19 @@ impl Writer {
     fn accept(&mut self, outcome: Outcome) -> io::Result<()> {
         self.generated += 1;
         let record = match outcome {
-            Outcome::Record(r) => *r,
+            Outcome::Record(r, canonical) => {
+                let seen = self.dedup.check(r.canonical_hash, r.record_id, &canonical);
+                self.dedup_counts.add(seen);
+                if let Seen::Duplicate { kept_id } = seen {
+                    writeln!(
+                        self.dropped,
+                        "{},{kept_id},{:016x}",
+                        r.record_id, r.canonical_hash
+                    )?;
+                    return Ok(());
+                }
+                *r
+            }
             Outcome::Failed(f) => {
                 self.failures.push(f);
                 return Ok(());
@@ -283,6 +313,10 @@ pub fn generate(dir: &Path, opts: &GenerateOptions) -> io::Result<Manifest> {
         tool_version: opts.tool_version.clone(),
     };
     let writer = produce(opts, &run, &pool, Writer::create(dir, opts)?)?;
+    writer
+        .dropped
+        .into_inner()
+        .map_err(io::IntoInnerError::into_error)?;
     let mut files = Vec::new();
     for f in writer.files {
         f.sink.finish()?;
@@ -316,7 +350,13 @@ pub fn generate(dir: &Path, opts: &GenerateOptions) -> io::Result<Manifest> {
         count: opts.count,
         records,
         failures: writer.failures,
-        dedup: DedupSummary::default(),
+        dedup: DedupSummary {
+            duplicates: writer.dedup_counts.duplicates,
+            duplicate_rate: writer.dedup_counts.rate(),
+            hash_collisions: writer.dedup_counts.hash_collisions,
+            dropped_file: DROPPED_FILE.into(),
+            saturation: writer.dedup_counts.curve(),
+        },
         split: SplitInfo {
             rule: "canonical_hash % 100".into(),
             ranges: opts.split,
@@ -340,6 +380,7 @@ pub fn generate(dir: &Path, opts: &GenerateOptions) -> io::Result<Manifest> {
     };
     debug_assert_eq!(writer.generated, opts.count);
     manifest.write(dir)?;
+    std::fs::write(dir.join(REPORT_FILE), report_markdown(&manifest))?;
     Ok(manifest)
 }
 
@@ -419,6 +460,45 @@ pub(crate) mod tests {
             }
             assert!(digests.windows(2).all(|w| w[0] == w[1]), "{format:?}");
         }
+    }
+
+    #[test]
+    fn duplicates_are_dropped_keeping_the_lowest_id() {
+        // 2 colors / capacity 3 / 1 empty has only a handful of distinct puzzles.
+        let mut opts = options(200, Format::Jsonl, 2);
+        opts.params = Params {
+            n_colors: 2,
+            capacity: 3,
+            n_empty: 1,
+        };
+        let dir = temp_dir("gen_dups");
+        let m = generate(&dir, &opts).unwrap();
+        let records = read_records(&dir, &m).unwrap();
+        assert_eq!(m.records + m.dedup.duplicates, 200);
+        assert!(m.dedup.duplicates > 150, "{:?}", m.dedup);
+        let mut hashes: Vec<u64> = records.iter().map(|r| r.canonical_hash).collect();
+        hashes.sort_unstable();
+        hashes.dedup();
+        assert_eq!(hashes.len(), records.len());
+        let dropped = std::fs::read_to_string(dir.join(DROPPED_FILE)).unwrap();
+        assert_eq!(dropped.lines().count() as u64, m.dedup.duplicates + 1);
+        for line in dropped.lines().skip(1) {
+            let mut f = line.split(',');
+            let dropped: u64 = f.next().unwrap().parse().unwrap();
+            let kept: u64 = f.next().unwrap().parse().unwrap();
+            assert!(kept < dropped);
+            assert!(records.iter().any(|r| r.record_id == kept));
+        }
+        assert_eq!(
+            m.dedup.saturation.first(),
+            Some(&(10, m.dedup.saturation[0].1))
+        );
+        assert_eq!(m.dedup.saturation.last().unwrap().0, 200);
+        let report = std::fs::read_to_string(dir.join(REPORT_FILE)).unwrap();
+        assert!(report.contains("| 200 | 0 |"), "{report}");
+        let scan = crate::dataset::dedup::scan_stored(&dir, &m).unwrap();
+        assert_eq!((scan.counts.seen, scan.counts.duplicates), (m.records, 0));
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

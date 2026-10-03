@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use clap::Args;
 use water_sort_core::{GenConfig, MetricsConfig, Params, Tier, is_supported_in};
 
+use super::dedup::standalone_report;
 use super::generate::{CHUNK, GenerateOptions, WINDOW_CHUNKS, generate, has_dataset};
 use super::manifest::{Format, Manifest, tool_version};
 use super::split::SplitRanges;
@@ -199,6 +200,28 @@ pub fn run_generate(args: &GenerateArgs) -> io::Result<Manifest> {
         manifest.threads
     );
     Ok(manifest)
+}
+
+/// `dedup-report <dir>`.
+#[derive(Args, Debug, Clone)]
+pub struct DedupReportArgs {
+    /// Dataset directory (with `manifest.json`).
+    pub dir: PathBuf,
+    /// Write the Markdown report here instead of stdout.
+    #[arg(long)]
+    pub out: Option<PathBuf>,
+}
+
+pub fn run_dedup_report(args: &DedupReportArgs) -> io::Result<()> {
+    let md = standalone_report(&args.dir)?;
+    match &args.out {
+        Some(path) => {
+            std::fs::write(path, md)?;
+            eprintln!("wrote {}", path.display());
+        }
+        None => print!("{md}"),
+    }
+    Ok(())
 }
 
 #[cfg(test)]

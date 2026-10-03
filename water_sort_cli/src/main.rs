@@ -27,6 +27,8 @@ enum Command {
     Sweep(sweep::SweepArgs),
     /// A puzzle dataset (Parquet or JSONL) with manifest, dedup report and split.
     Generate(commands::GenerateArgs),
+    /// Duplicate, split and tier report of a dataset, with a fresh scan of its stored records.
+    DedupReport(commands::DedupReportArgs),
 }
 
 fn main() -> ExitCode {
@@ -35,6 +37,7 @@ fn main() -> ExitCode {
         Command::Stats(args) => stats::run(args).map(|_| ()),
         Command::Sweep(args) => sweep::run(args),
         Command::Generate(args) => commands::run_generate(args).map(|_| ()).map_err(Into::into),
+        Command::DedupReport(args) => commands::run_dedup_report(args).map_err(Into::into),
         Command::Compare(args) => compare::run(args).map(|path| {
             eprintln!("wrote {}", path.display());
         }),
