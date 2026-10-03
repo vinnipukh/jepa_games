@@ -102,10 +102,15 @@ class PlanConfig:
     #: probe-decoded state) or ``none`` (every from != to pair).
     legality: str = "head"
     depth: int = 4
+    #: Beam with ``value``: a node's cost is the max of ``depth + h`` along its path (A*
+    #: consistency), so optimistic distances on drifted deep latents cannot win; a node the
+    #: solved head marks as solved keeps its exact cost (its depth).
+    consistent: bool = True
     width: int = 16
-    #: Never step back into a state already visited in the real episode (checked at the root
-    #: with the real rules), unless no other move is left.
-    avoid_revisits: bool = True
+    #: Root actions that lead back to a state already visited in the real episode are ranked
+    #: last: ``real`` checks the root's children with the real rules (like the root's legal
+    #: mask), ``probe`` checks the probe-decoded predicted child (model only), ``off``.
+    revisits: str = "real"
     mcts_simulations: int = 64
     mcts_c: float = 1.5
     cem_samples: int = 256

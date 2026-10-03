@@ -15,8 +15,9 @@ Stages (each skipped when its output already exists, so an interrupted run resum
    **ablations**: loss / target variants on the default configuration (collapse study).
 4. **dqn**: the DDQN baseline (:mod:`jepa.dqn`) on the preset's DQN training sets.
 5. **eval**: every model (planner ``beam``) on every test set (the full cross-evaluation matrix:
-   generator × layout on both sides), the other planners (``mcts``, ``cem``) and the baselines
-   (random, greedy, solver, DDQN) on the default test set, baselines on every test set.
+   generator × layout on both sides); planner variants (depth, scoring, legality, revisit
+   check, MCTS, CEM) on the default test set; baselines (random, greedy, solver, DDQN) on every
+   test set.
 6. **report**: ``<out>/report.md`` and ``<out>/report.json`` (:mod:`jepa.report`).
 
 Everything lands under ``--out`` (default ``data/jepa/<preset>``; ``data/`` is gitignored).
@@ -41,7 +42,9 @@ import numpy as np
 import torch
 
 from jepa import baselines, report
-from jepa.config import EvalConfig, PlanConfig, TrainConfig, train_config_from_dict
+from jepa.config import (
+    EvalConfig, PlanConfig, TrainConfig, plan_config_from_dict, train_config_from_dict,
+)
 from jepa.dqn import DQNConfig, DQNPolicy, train_dqn
 from jepa.eval import run_episodes, test_puzzles, trained_hashes
 from jepa.plan import LatentPlanner
@@ -52,6 +55,20 @@ CREATED_AT = "2026-10-03T00:00:00Z"
 STAGES = ("datasets", "trajectories", "train", "ablations", "dqn", "eval", "report")
 TRAIN_SOURCES = ("optimal", "random", "epsilon")
 VAL_SOURCES = ("random", "epsilon")
+
+
+#: Planner variants compared on the default test set (policy name ``jepa-<name>``).
+PLANNER_VARIANTS: dict[str, dict[str, Any]] = {
+    "beam-d1": {"depth": 1},
+    "beam-d2": {"depth": 2},
+    "beam-inconsistent": {"consistent": False},
+    "beam-solved-score": {"score": "solved"},
+    "beam-probe-legality": {"legality": "probe"},
+    "beam-model-revisits": {"revisits": "probe"},
+    "beam-no-revisits": {"revisits": "off"},
+    "mcts": {"method": "mcts"},
+    "cem": {"method": "cem"},
+}
 
 
 @dataclass
@@ -75,8 +92,9 @@ class Preset:
     dqn: dict[str, Any] = field(default_factory=dict)
     eval: EvalConfig = field(default_factory=EvalConfig)
     plan: PlanConfig = field(default_factory=PlanConfig)
-    #: Extra planners run on the default test set only, with this many puzzles.
-    extra_planners: tuple[str, ...] = ("mcts", "cem")
+    #: Planner variants (PlanConfig overrides of ``plan``) run by the default configuration's
+    #: models on the default test set only, with ``extra_puzzles`` puzzles.
+    extra_planners: dict[str, dict[str, Any]] = field(default_factory=lambda: dict(PLANNER_VARIANTS))
     extra_puzzles: int = 200
     #: The default configuration: (generator, layout).
     default: tuple[str, str] = ("uniform", "standard")
@@ -130,6 +148,8 @@ PRESETS: dict[str, Preset] = {
         eval=EvalConfig(puzzles=6, batch=4),
         plan=PlanConfig(depth=2, width=4, mcts_simulations=4, cem_samples=8, cem_elites=2,
                         cem_iters=1),
+        extra_planners={"mcts": {"method": "mcts"}, "cem": {"method": "cem"},
+                        "beam-model-revisits": {"revisits": "probe"}},
         extra_puzzles=3,
         ablations={"no_idm": ABLATIONS["no_idm"], "latent_only": ABLATIONS["latent_only"]},
         datasets={"uniform_standard": str(REPO / "water_sort_cli/tests/fixtures/datasets/uniform_c5k4e2")},
@@ -334,14 +354,13 @@ def stage_eval(preset: Preset, out: Path, device: str | None) -> list[dict[str, 
             rd = run_dir(out, key, seed)
             model, cfg = load_model(rd / "model.pt", dev)
             excluded = trained_hashes(cfg.data.train)
-            plans = [("beam", tk, tests[tk]) for tk in keys]
+            main = f"jepa-{preset.plan.method}"
+            plans = [(main, {}, tk, tests[tk]) for tk in keys]
             if key == default_key:
-                plans += [(m, default_key, tests[default_key][:preset.extra_puzzles])
-                          for m in preset.extra_planners]
-            for method, tk, puzzles in plans:
-                pcfg = copy.deepcopy(preset.plan)
-                pcfg.method = method
-                name = f"jepa-{method}"
+                plans += [(f"jepa-{v}", over, default_key, tests[default_key][:preset.extra_puzzles])
+                          for v, over in preset.extra_planners.items()]
+            for name, over, tk, puzzles in plans:
+                pcfg = plan_config_from_dict(_merge(asdict(preset.plan), over))
                 _log(f"eval {name}[{key} seed {seed}] on {tk} ({len(puzzles)} puzzles)")
                 records.append(_eval_cached(
                     edir / f"{name}-{key}-seed{seed}__{tk}.json",

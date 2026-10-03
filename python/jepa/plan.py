@@ -10,9 +10,10 @@ the encoder; everything below the root is a latent rollout of the predictor.
 - **Score** (``PlanConfig.score``): ``value`` ranks a node by ``f = depth + h(ẑ)`` with ``h`` the
   learned distance-to-go (0 once the solved head fires), an A*-style cost; ``solved`` ranks by
   the solved head's probability (the plan's primary goal), ties broken by depth.
-- **Revisits**: with ``avoid_revisits`` the root children whose probe-decoded predicted state
-  was already visited in the real episode are ranked last, which breaks cycles without
-  consulting the real transition.
+- **Revisits** (``PlanConfig.revisits``): root actions leading back to a state visited in the real
+  episode are ranked last. ``real`` finds them with the real rules at the root (the same
+  information as the root's legal mask), ``probe`` from the probe-decoded predicted child (model
+  only), ``off`` not at all. Without it, MPC with an imperfect model cycles.
 
 Methods: ``beam`` (width × depth beam search), ``mcts`` (UCT with value = solved probability or
 negative distance, children expanded together), ``cem`` (cross-entropy method over action
@@ -50,7 +51,6 @@ class LatentPlanner:
     def reset(self, n: int, rng: np.random.Generator) -> None:
         self.visited = [set() for _ in range(n)]
         self.rng = rng
-        self.torch_gen = torch.Generator(device="cpu").manual_seed(int(rng.integers(2**63)))
 
     # -- helpers ---------------------------------------------------------------------------------
 
@@ -102,11 +102,19 @@ class LatentPlanner:
     def _is_goal(self, h: torch.Tensor) -> torch.Tensor:
         return torch.sigmoid(self.model.solved_logit(h).float()) > self.cfg.solved_threshold
 
-    def _revisit_penalty(self, env: np.ndarray, h_child: torch.Tensor) -> torch.Tensor:
+    def _revisit_penalty(self, env: np.ndarray, h_child: torch.Tensor,
+                         actions: torch.Tensor) -> torch.Tensor:
+        """``env``: environment per root child, ``actions``: the root action leading to it."""
         pen = torch.zeros(len(env), device=h_child.device)
-        if not self.cfg.avoid_revisits or len(env) == 0:
+        mode = self.cfg.revisits
+        if mode == "off" or len(env) == 0:
             return pen
-        cells = self._decode(h_child)
+        if mode == "real":
+            cells, _ = w.batch_step(self._root_cells[self._row_of[env]], actions.cpu().numpy())
+        elif mode == "probe":
+            cells = self._decode(h_child)
+        else:
+            raise ValueError(f"unknown revisits mode {mode!r}")
         hits = [cells[i].tobytes() in self.visited[e] for i, e in enumerate(env)]
         return pen + torch.as_tensor(hits, device=h_child.device, dtype=torch.float32) * REVISIT_PENALTY
 
@@ -118,6 +126,9 @@ class LatentPlanner:
         Returns ``B`` actions (``-1`` when a state has no legal move)."""
         for c, e in zip(cells, envs):
             self.visited[e].add(c.tobytes())
+        self._root_cells = cells
+        self._row_of = np.zeros(len(self.visited), dtype=np.int64)
+        self._row_of[np.asarray(envs)] = np.arange(len(envs))
         root_mask = torch.as_tensor(w.batch_action_mask(cells), device=self.device)
         method = {"beam": self._beam, "mcts": self._mcts, "cem": self._cem}.get(self.cfg.method)
         if method is None:
@@ -136,6 +147,7 @@ class LatentPlanner:
         frontier = h0.unsqueeze(1)  # (B, 1, T, d)
         alive = torch.ones(B, 1, dtype=torch.bool, device=dev)
         first = torch.full((B, 1), -1, dtype=torch.long, device=dev)
+        path_cost = torch.full((B, 1), -math.inf, device=dev)
         best_cost = torch.full((B,), math.inf, device=dev)
         best_depth = torch.zeros(B, dtype=torch.long, device=dev)
         best_action = torch.full((B,), -1, dtype=torch.long, device=dev)
@@ -156,10 +168,16 @@ class LatentPlanner:
                 break
             child = self.model.predict(frontier[b_idx, w_idx], a_idx)
             cost = self._cost(child, float(depth))
+            if self.cfg.score == "value" and self.cfg.consistent:
+                # A path costs at least as much as any of its prefixes: a deep latent whose
+                # distance head is optimistic cannot undercut its own parent.
+                # A node the solved head marks as solved keeps its exact cost (its depth).
+                cost = torch.where(self._is_goal(child), cost,
+                                   torch.maximum(cost, path_cost[b_idx, w_idx]))
             goal = self._is_goal(child)
             fa = a_idx if depth == 1 else first[b_idx, w_idx]
             if depth == 1:
-                cost = cost + self._revisit_penalty(envs[b_idx.cpu().numpy()], child)
+                cost = cost + self._revisit_penalty(envs[b_idx.cpu().numpy()], child, a_idx)
             # Best node per environment so far (ties go to the deeper node).
             order = torch.argsort(cost)
             ob = b_idx[order]
@@ -191,11 +209,13 @@ class LatentPlanner:
             new_frontier = torch.zeros(B, nw, T, d, dtype=child.dtype, device=dev)
             new_alive = torch.zeros(B, nw, dtype=torch.bool, device=dev)
             new_first = torch.full((B, nw), -1, dtype=torch.long, device=dev)
+            new_cost = torch.full((B, nw), -math.inf, device=dev)
             rb, rr = b_idx[sel_rows], rank[k]
             new_frontier[rb, rr] = child[sel_rows]
             new_alive[rb, rr] = ~goal[sel_rows]
             new_first[rb, rr] = fa[sel_rows]
-            frontier, alive, first = new_frontier, new_alive, new_first
+            new_cost[rb, rr] = cost[sel_rows]
+            frontier, alive, first, path_cost = new_frontier, new_alive, new_first, new_cost
             done = done | reached
         out = best_action.cpu().numpy()
         # Environments without any candidate (no legal move) keep -1.
@@ -275,9 +295,9 @@ class LatentPlanner:
         child = self.model.predict(hs[b_rows], a_idx)
         value = self._node_value(child)
         goal = self._is_goal(child)
-        if root and self.cfg.avoid_revisits:
+        if root:
             env_of = np.array([envs[leaves[i][0]] for i in b_rows.cpu().numpy()])
-            value = value - self._revisit_penalty(env_of, child) / REVISIT_PENALTY
+            value = value - self._revisit_penalty(env_of, child, a_idx) / REVISIT_PENALTY
         for (b, n) in leaves:
             trees[b]["kids"][n] = {}
         rows = b_rows.cpu().numpy()
@@ -320,7 +340,7 @@ class LatentPlanner:
                 h = self.model.predict(h, a)
                 c = self._cost(h, float(t + 1))
                 if t == 0:
-                    c = c + self._revisit_penalty(np.repeat(envs, S), h)
+                    c = c + self._revisit_penalty(np.repeat(envs, S), h, a)
                 c = torch.where(finished | none, torch.full_like(c, math.inf), c)
                 cost = torch.minimum(cost, c)
                 finished = finished | self._is_goal(h) | none

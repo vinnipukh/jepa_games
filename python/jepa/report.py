@@ -84,7 +84,8 @@ def write(records: list[dict[str, Any]], runs: dict[str, list[dict]], info: dict
         f"record ids of each test split, move limit {preset['eval']['move_limit_k']} · opt_moves, "
         f"policy seed {preset['eval']['policy_seed']}. Planner: {preset['plan']['method']} "
         f"(depth {preset['plan']['depth']}, width {preset['plan']['width']}, score "
-        f"`{preset['plan']['score']}`, legality `{preset['plan']['legality']}`).\n")
+        f"`{preset['plan']['score']}`, legality `{preset['plan']['legality']}`, revisit check "
+        f"`{preset['plan'].get('revisits')}`).\n")
     add(f"`opt_moves` buckets (quartiles of all test puzzles pooled): {', '.join(labels)}; pooled "
         f"weights {', '.join(f'{100 * w:.0f} %' for w in weights)}.\n")
 
@@ -128,9 +129,16 @@ def write(records: list[dict[str, Any]], runs: dict[str, list[dict]], info: dict
     add("*k-step exact*: the probe decoding of the k-step latent rollout equals the real state. "
         "*value MAE*: distance-to-go error in moves (unsolvable states count as the cap).\n")
 
+    method = f"jepa-{preset['plan']['method']}"
     # Default configuration: every policy
     add(f"## Policies on the default test set (`{default_key}`)\n")
-    pol_order = ["random", "greedy", "ddqn", "jepa-beam", "jepa-mcts", "jepa-cem", "solver"]
+    add(f"`{method}` is the planner of the matrix; the other `jepa-*` rows are planner variants "
+        f"(see `PLANNER_VARIANTS` in `jepa/pipeline.py`) on the first {preset.get('extra_puzzles')} "
+        "test puzzles.\n")
+    seen = sorted({k[0] for k in groups if k[2] == default_key})
+    first = ["random", "greedy", "ddqn", method]
+    pol_order = [x for x in first if x in seen] + [x for x in seen if x not in first + ["solver"]]
+    pol_order += ["solver"] if "solver" in seen else []
     rows, brows = [], []
     for pol in pol_order:
         for (gp, gt, gtest), g in sorted(groups.items(), key=lambda x: str(x[0])):
@@ -150,7 +158,6 @@ def write(records: list[dict[str, Any]], runs: dict[str, list[dict]], info: dict
     add(_table(["policy"] + labels, brows) + "\n")
 
     # Cross-evaluation matrix
-    method = f"jepa-{preset['plan']['method']}"
     add(f"## Cross-evaluation matrix ({method})\n")
     add("Rows: training set; columns: test set. Each cell: solve rate, then the bucket-matched "
         "solve rate in brackets, mean ± std over seeds. Leaked test puzzles (in the model's "
