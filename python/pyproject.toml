@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "jepa_water_sort"
-description = "Water Sort puzzles (Rust core via PyO3), a Gymnasium environment and a trajectory logger"
+description = "Water Sort puzzles (Rust core via PyO3), a Gymnasium environment, a trajectory logger and a JEPA world model"
 requires-python = ">=3.10"
 license = "MIT"
 classifiers = [
@@ -20,11 +20,13 @@ dynamic = ["version"]
 
 [project.optional-dependencies]
 test = ["pytest>=8"]
+# The JEPA package (Phase 7). For a CUDA build of torch: `uv pip install ... --torch-backend auto`.
+jepa = ["torch>=2.4", "tensorboard>=2.16"]
 
 [tool.maturin]
 module-name = "jepa_water_sort._native"
 python-source = "."
-python-packages = ["jepa_water_sort"]
+python-packages = ["jepa_water_sort", "jepa"]
 features = []
 locked = true
 
