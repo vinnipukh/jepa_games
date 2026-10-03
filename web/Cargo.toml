@@ -1,0 +1,31 @@
+[package]
+name = "water_sort_web"
+description = "WASM binding (wasm-bindgen) of the Water Sort core and generators for the browser game"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+
+[lib]
+# cdylib for wasm-bindgen, rlib for the wasm-bindgen-test integration tests.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+water_sort_core.workspace = true
+uniform_water_sort.workspace = true
+turan_water_sort.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+wasm-bindgen = "0.2.129"
+js-sys = "0.3.106"
+# getrandom 0.4 needs only its `wasm_js` feature on wasm32-unknown-unknown (no cfg flag); feature
+# unification turns it on for uniform_water_sort's `fresh_seed` too. It only selects the backend on wasm32.
+getrandom = { workspace = true, features = ["wasm_js"] }
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+rand_chacha.workspace = true
+
+[lints]
+workspace = true

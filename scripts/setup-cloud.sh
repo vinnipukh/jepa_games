@@ -52,11 +52,19 @@ fi
 
 if $want_web; then
   rustup target add wasm32-unknown-unknown
-  if ! command -v wasm-bindgen >/dev/null 2>&1; then
-    echo "==> installing wasm-bindgen-cli (match the wasm-bindgen version in Cargo.lock once it exists)"
-    cargo install wasm-bindgen-cli --locked
+  want=$(scripts/wasm-bindgen-version.sh)
+  if [ "$(wasm-bindgen --version 2>/dev/null | awk '{print $2}')" != "$want" ]; then
+    echo "==> installing wasm-bindgen-cli $want (the version in Cargo.lock)"
+    cargo install wasm-bindgen-cli --version "$want" --locked
   fi
-  command -v node >/dev/null 2>&1 || echo "warning: node not found; phase 6 needs Node.js" >&2
+  if [ ! -f web/app/package-lock.json ]; then
+    :
+  elif command -v npm >/dev/null 2>  if command -v npm >/dev/null 2>&1; then1; then
+    echo "==> installing the web app's npm packages"
+    (cd web/app && npm ci)
+  else
+    echo "warning: node/npm not found; phase 6 needs Node.js >= 20" >&2
+  fi
 fi
 
 echo "==> quick check"

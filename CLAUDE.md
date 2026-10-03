@@ -1,6 +1,6 @@
 # jepa_games — agent guide
 
-Water Sort puzzle game with two puzzle generators, plus the infrastructure to train a JEPA world model on it. Rust workspace (game core, generators, CLI, PyO3 binding) plus the `jepa_water_sort` Python package (Gymnasium env, vector env, trajectory logger); the WASM web UI and the JEPA itself come in later phases.
+Water Sort puzzle game with two puzzle generators, plus the infrastructure to train a JEPA world model on it. Rust workspace (game core, generators, CLI, PyO3 binding, wasm-bindgen binding) plus the `jepa_water_sort` Python package (Gymnasium env, vector env, trajectory logger) and the browser game (`web/`, Vite + TypeScript on WASM); the JEPA itself comes in Phase 7.
 
 ## Where things are
 
@@ -11,7 +11,7 @@ Water Sort puzzle game with two puzzle generators, plus the infrastructure to tr
 - `docs/HANDOFF.md`: how to continue development (cloud sessions).
 - `docs/datasets.md`: how to generate datasets, including harder ones.
 - `reports/`: committed measurement reports (`water_sort_cli stats` / `compare` output).
-- Crates: `water_sort_core` (all game rules, solver, canonical hash, stars, sampling, `Generator` trait), `uniform_water_sort`, `turan_water_sort`, `water_sort_cli` (binary + library: `args`, `dataset` = Phase 4 record schema, Parquet/JSONL, generate, dedup, split, leakage, validate; D17), `python/` (PyO3 crate + `jepa_water_sort` package: binding, `WaterSortEnv`, `WaterSortVectorEnv`, policies, dataset reader, trajectory logger; D19).
+- Crates: `water_sort_core` (all game rules, solver, canonical hash, stars, sampling, `Generator` trait), `uniform_water_sort`, `turan_water_sort`, `water_sort_cli` (binary + library: `args`, `dataset` = Phase 4 record schema, Parquet/JSONL, generate, dedup, split, leakage, validate; D17), `python/` (PyO3 crate + `jepa_water_sort` package: binding, `WaterSortEnv`, `WaterSortVectorEnv`, policies, dataset reader, trajectory logger; D19), `web/` (`water_sort_web` wasm-bindgen crate + `web/app` Vite/TypeScript game: worker generation, completion screen, share URLs, human trajectory export; D20).
 
 ## Commands
 
@@ -31,6 +31,12 @@ uv pip install maturin -r pyproject.toml --extra test
 uv run --no-project maturin develop --release --locked     # rebuild after every Rust change
 uv run --no-project python -m pytest
 uv run --no-project python -m jepa_water_sort.logger collect --help   # trajectories
+
+# Web (scripts/setup-cloud.sh --web installs the wasm32 target, wasm-bindgen-cli, npm packages)
+cargo clippy -p water_sort_web --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+cargo test --release -p water_sort_web --target wasm32-unknown-unknown --locked   # golden vectors on wasm32 (Node)
+web/build.sh                                               # -> web/pkg; rebuild after every Rust change
+(cd web/app && npm run build)                              # typecheck + dist; `npm run dev` to play
 ```
 
 The toolchain is pinned in `rust-toolchain.toml` (1.99.0). `Cargo.lock` is committed; always build with `--locked`.
@@ -53,6 +59,7 @@ The toolchain is pinned in `rust-toolchain.toml` (1.99.0). `Cargo.lock` is commi
 - Uniform = labeled-uniform over accepted fills (D2). Turan = time-seeded strategies (D1); default `ReverseSearch` (I2A-style search over reverse pours keeping the best-scoring state), plus `Scramble`, `PourWalk` (distributed only) and `Constrained` (D16). A reverse walk alone cannot make more than `n_colors × (capacity − 1)` progressing steps (D16).
 - Difficulty tiers easy / medium / hard: `water_sort_core::Tier`, cut points from uniform's `opt_moves` distribution per configuration and layout (D16).
 - Environment rules (D19): reward, illegal actions (no state change, −1, counted), termination and truncation are `water_sort_core::episode`; Python only builds observations and `info`. Golden rollouts (`water_sort_core/tests/golden/rollouts.json`) are replayed exactly from pytest.
+- Web (D20): all rules run in wasm; TypeScript only renders. Seeds and hashes cross the JS boundary as hex strings. The web crate reads `Date.now()` for Turan seeds; core never reads the clock. Generation runs in a Web Worker; its 60 s timeout is a UI guard only.
 - Datasets (D17): record `i` has seed `splitmix64(master_seed ^ i)`; dedup by canonical form keeps the lowest `record_id`; split = `canonical_hash % 100` (80/10/10); every record stores its tier. `manifest.json` describes a dataset directory, `validate` re-checks it. Two runs with the same master seed and `--created-at` are byte-identical for any thread count.
 
 ## Workflow

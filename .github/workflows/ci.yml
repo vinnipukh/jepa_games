@@ -50,6 +50,38 @@ jobs:
       - run: uv run --no-project maturin develop --release --locked
       - run: uv run --no-project python -m pytest -v
 
+  wasm:
+    name: wasm (build + wasm-bindgen-test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install toolchain from rust-toolchain.toml and the wasm32 target
+        run: |
+          rustup toolchain install
+          rustup target add wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - name: wasm-bindgen version from Cargo.lock
+        id: wb
+        run: echo "version=$(scripts/wasm-bindgen-version.sh)" >> "$GITHUB_OUTPUT"
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen@${{ steps.wb.outputs.version }}
+      - run: cargo clippy -p water_sort_web --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: Golden vectors and rollouts on wasm32 (wasm-bindgen-test, Node)
+        run: cargo test --release --locked -p water_sort_web --target wasm32-unknown-unknown
+      - name: Build the wasm module and JS bindings
+        run: web/build.sh
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/app/package-lock.json
+      - name: Typecheck and build the web app
+        working-directory: web/app
+        run: |
+          npm ci
+          npm run build
+
   heavy-tests:
     name: heavy tests (release, ignored)
     runs-on: ubuntu-latest
