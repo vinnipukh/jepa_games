@@ -14,6 +14,7 @@
 )]
 
 mod batch;
+mod episode;
 mod errors;
 mod generate;
 mod types;
@@ -49,5 +50,8 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(generate::fresh_seed, m)?)?;
     m.add_function(wrap_pyfunction!(batch::batch_step, m)?)?;
     m.add_function(wrap_pyfunction!(batch::batch_generate, m)?)?;
+    m.add_function(wrap_pyfunction!(episode::env_step, m)?)?;
+    m.add_function(wrap_pyfunction!(episode::move_limit, m)?)?;
+    m.add_function(wrap_pyfunction!(episode::is_dead_end, m)?)?;
     Ok(())
 }

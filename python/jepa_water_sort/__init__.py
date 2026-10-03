@@ -5,6 +5,8 @@ module, so results are bit-identical to the Rust crates. This package adds the G
 environment, the native vector environment, policies and the trajectory logger on top.
 """
 
+import gymnasium
+
 from jepa_water_sort._native import (
     EMPTY,
     GenConfig,
@@ -20,9 +22,12 @@ from jepa_water_sort._native import (
     batch_step,
     canonical,
     canonical_hash,
+    env_step,
     fresh_seed,
     generate,
+    is_dead_end,
     legal_moves,
+    move_limit,
     solve,
     splitmix64,
     stars,
@@ -30,8 +35,20 @@ from jepa_water_sort._native import (
     tier,
     variant,
 )
+from jepa_water_sort.env import WaterSortEnv, decode_observation, encode_observation
+
+ENV_ID = "jepa_water_sort/WaterSort-v0"
+if ENV_ID not in gymnasium.envs.registry:
+    gymnasium.register(ENV_ID, entry_point="jepa_water_sort.env:WaterSortEnv")
 
 __all__ = [
+    "ENV_ID",
+    "WaterSortEnv",
+    "decode_observation",
+    "encode_observation",
+    "env_step",
+    "is_dead_end",
+    "move_limit",
     "EMPTY",
     "GenConfig",
     "GenerationError",
