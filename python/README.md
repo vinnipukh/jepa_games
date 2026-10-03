@@ -61,3 +61,36 @@ Sources: `optimal`, `random`, `epsilon`, `greedy` (collected on one dataset spli
 run of pours between undos and restarts). Output: zstd Parquet shards of about 1M transitions plus a
 `manifest.json`; `logger.read_transitions` / `logger.to_numpy` load them, and
 `encode_observation` rebuilds the one-hot observation. Details: D19 in `docs/decisions.md`.
+
+## JEPA world model (Phase 7, package `jepa`)
+
+Installed with the same `maturin develop`; needs the `jepa` extra (torch, tensorboard):
+
+```bash
+uv pip install -r pyproject.toml --extra jepa --torch-backend auto   # CUDA build if a driver is found
+```
+
+One command runs the whole experiment (datasets → trajectories → training → DDQN → evaluation
+matrix → report); `scripts/train-jepa.sh` does the setup first and copies the report to
+`reports/jepa_eval.md`:
+
+```bash
+python -m jepa.pipeline --preset full      # 4 training sets × 3 seeds, ablations, DDQN, full matrix
+python -m jepa.pipeline --preset default   # uniform standard only, one seed
+python -m jepa.pipeline --preset smoke --out /tmp/smoke   # CI fixture, minutes on a CPU
+tensorboard --logdir ../data/jepa/full/runs
+```
+
+Single pieces: `python -m jepa.train --train DIR... --val DIR... --out RUN` (a
+`TrainConfig` JSON via `--config`), `python -m jepa.dqn --dataset DIR --out RUN`.
+
+| module | contents |
+|---|---|
+| `data` | trajectory shards → `(s, a, s', done)`, legal masks, multi-step chains, exact distance-to-go labels from the solver (cached as `jepa-labels-*.npz`) |
+| `models` | tube encoder (no tube position embeddings, permutation-equivariant), predictor with source/target action flags, EMA target, IDM, legality, probe, solved and distance heads |
+| `train` / `monitor` | loss (k = 1..3 latent rollouts + heads), AdamW + cosine schedule, EMA cosine momentum; per-epoch latent std, effective rank, probe / IDM / k-step rollout accuracy |
+| `plan` | batched MPC planners in latent space: beam (default), MCTS, CEM; real legal mask at the root |
+| `baselines` / `dqn` | random legal, greedy (fewest color changes, then segments), solver, masked DDQN |
+| `eval` / `report` / `pipeline` | fixed test puzzles, solve rate / stars / moves ÷ opt by `opt_moves` bucket and generator, cross-evaluation matrix, Markdown + JSON report |
+
+Details and the choices behind them: D21 in `docs/decisions.md`.
