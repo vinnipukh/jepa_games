@@ -9,6 +9,7 @@ Water Sort puzzle game with two puzzle generators, plus the infrastructure to tr
 - `docs/README.md`: phase index with status, plus cross-cutting rules.
 - `docs/phases/phase-N-<name>/PLAN.md`: detailed plan per phase. `START_PROMPT.md`: the prompt that starts that phase.
 - `docs/HANDOFF.md`: how to continue development (cloud sessions).
+- `docs/datasets.md`: how to generate datasets, including harder ones.
 - `reports/`: committed measurement reports (`water_sort_cli stats` / `compare` output).
 - Crates: `water_sort_core` (all game rules, solver, canonical hash, stars, sampling, `Generator` trait), `uniform_water_sort`, `turan_water_sort`, `water_sort_cli` (binary + library: `args`, `dataset` = Phase 4 record schema, Parquet/JSONL, generate, dedup, split, leakage, validate; D17).
 
