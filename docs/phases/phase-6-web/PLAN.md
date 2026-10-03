@@ -50,7 +50,7 @@ GitHub Pages deployed by a workflow on pushes to `main` (optional, needs a publi
 5. [x] Completion screen + stars + solution replay
 6. [x] Seed / code open, shareable URL
 7. [x] Trajectory export (optional) + Python importer in `logger.py`
-8. [ ] Pages deploy (optional): workflow ready (`.github/workflows/pages.yml`, manual only); Pages itself left for later by the user (D20)
+8. [x] Pages deploy (optional): `.github/workflows/pages.yml`, live at https://vinnipukh.github.io/jepa_games/ (D20)
 
 ## Tests
 

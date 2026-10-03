@@ -3,6 +3,8 @@
 A Water Sort puzzle game with two puzzle generators, plus the infrastructure to train a JEPA
 world model on it.
 
+**Play:** https://vinnipukh.github.io/jepa_games/
+
 - **`water_sort_core`** (Rust): the game rules, an optimal solver, star rating, canonical
   hashing and the shared generator machinery. Every other part calls into it, so the rules
   exist exactly once.
