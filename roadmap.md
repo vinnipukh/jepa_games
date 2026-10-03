@@ -234,35 +234,35 @@ This phase is outside the Rust side; only the requirements on the data interface
 
 ### 7.1 Model components
 
-- [ ] Encoder `E(s) -> z`
-- [ ] Action-conditioned predictor `P(z_t, a_t) -> ẑ_{t+1}`, target: EMA or stop-gradient target encoder.
-- [ ] Inverse dynamics head `IDM(z_t, z_{t+1}) -> a_t` (a regularizer against latent collapse; cheap because the action space is small and discrete).
-- [ ] State probe head: predicts tube contents from the latent. Used both for collapse monitoring and as an optional auxiliary loss.
+- [x] Encoder `E(s) -> z`
+- [x] Action-conditioned predictor `P(z_t, a_t) -> ẑ_{t+1}`, target: EMA or stop-gradient target encoder.
+- [x] Inverse dynamics head `IDM(z_t, z_{t+1}) -> a_t` (a regularizer against latent collapse; cheap because the action space is small and discrete).
+- [x] State probe head: predicts tube contents from the latent. Used both for collapse monitoring and as an optional auxiliary loss.
 
 ### 7.2 Collapse monitoring
 
-- [ ] Batch embedding variance and effective rank, logged every epoch.
-- [ ] Probe accuracy, logged every epoch.
+- [x] Batch embedding variance and effective rank, logged every epoch.
+- [x] Probe accuracy, logged every epoch.
 
 ### 7.3 Planning
 
-- [ ] Goal: the latent of the solved state. Water sort has multiple solved states (which tube holds which color), so the goal is defined either by the canonical solved state or by a "solved" classifier head.
-- [ ] Beam search or MCTS over latents for the discrete action space; CEM as an alternative.
+- [x] Goal: the latent of the solved state. Water sort has multiple solved states (which tube holds which color), so the goal is defined either by the canonical solved state or by a "solved" classifier head.
+- [x] Beam search or MCTS over latents for the discrete action space; CEM as an alternative.
 
 ### 7.4 Baselines
 
-- [ ] Random legal policy
-- [ ] Greedy (the move that reduces color changes the most)
-- [ ] DQN/DDQN with action mask + the Phase 5.2 reward
-- [ ] Solver (upper bound)
+- [x] Random legal policy
+- [x] Greedy (the move that reduces color changes the most)
+- [x] DQN/DDQN with action mask + the Phase 5.2 reward
+- [x] Solver (upper bound)
 
 ### 7.5 Evaluation
 
-- [ ] Solve rate
-- [ ] Mean stars (the Phase 1.5 function, same as for human players)
-- [ ] Mean `moves / opt_moves`
-- [ ] All reported broken down by `opt_moves` range and by generator
-- [ ] Cross-evaluation: train on uniform and test on turan, train on turan and test on uniform
+- [x] Solve rate
+- [x] Mean stars (the Phase 1.5 function, same as for human players)
+- [x] Mean `moves / opt_moves`
+- [x] All reported broken down by `opt_moves` range and by generator
+- [x] Cross-evaluation: train on uniform and test on turan, train on turan and test on uniform
 
 ---
 

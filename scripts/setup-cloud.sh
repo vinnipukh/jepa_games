@@ -5,15 +5,20 @@
 #   scripts/setup-cloud.sh            Rust only (phases 1-4)
 #   scripts/setup-cloud.sh --python   + uv, Python 3.12 and python/.venv with jepa_water_sort (phase 5, 7)
 #   scripts/setup-cloud.sh --web      + wasm32 target and wasm-bindgen-cli (phase 6; needs Node)
+#   scripts/setup-cloud.sh --jepa     --python + torch and tensorboard (phase 7). torch comes from
+#                                     the PyTorch index matching the machine's CUDA driver
+#                                     (uv --torch-backend auto); TORCH_BACKEND=cpu|cu128|... overrides
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
 want_python=false
 want_web=false
+want_jepa=false
 for arg in "$@"; do
   case "$arg" in
     --python) want_python=true ;;
+    --jepa) want_python=true; want_jepa=true ;;
     --web) want_web=true ;;
     *) echo "unknown option: $arg" >&2; exit 2 ;;
   esac
@@ -47,6 +52,11 @@ if $want_python; then
     [ -d .venv ] || uv venv --python 3.12
     uv pip install maturin -r pyproject.toml --extra test
     uv run --no-project maturin develop --release --locked
+    if $want_jepa; then
+      echo "==> installing torch (backend ${TORCH_BACKEND:-auto}) and tensorboard"
+      uv pip install -r pyproject.toml --extra jepa --torch-backend "${TORCH_BACKEND:-auto}"
+      uv run --no-project python -c "import torch; print('torch', torch.__version__, 'cuda', torch.cuda.is_available())"
+    fi
   )
 fi
 
@@ -59,7 +69,7 @@ if $want_web; then
   fi
   if [ ! -f web/app/package-lock.json ]; then
     :
-  elif command -v npm >/dev/null 2>  if command -v npm >/dev/null 2>&1; then1; then
+  elif command -v npm >/dev/null 2>&1; then
     echo "==> installing the web app's npm packages"
     (cd web/app && npm ci)
   else

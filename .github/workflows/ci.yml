@@ -47,6 +47,8 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - run: uv venv --python 3.12
       - run: uv pip install maturin -r pyproject.toml --extra test
+      - name: CPU torch for the jepa package (Phase 7)
+        run: uv pip install -r pyproject.toml --extra jepa --torch-backend cpu
       - run: uv run --no-project maturin develop --release --locked
       - run: uv run --no-project python -m pytest -v
 

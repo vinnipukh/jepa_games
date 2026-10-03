@@ -16,7 +16,7 @@ Development continues phase by phase in cloud coding-agent sessions. Everything 
 4. Review the PR (another session can do it: "review PR #N against docs/phases/phase-N-<name>/PLAN.md and docs/decisions.md"). Decide anything marked **proposed** in `docs/decisions.md`. Merge.
 5. Repeat with the next phase.
 
-Phase order and status: [`README.md`](README.md). Phase 7 is next.
+Phase order and status: [`README.md`](README.md). Phase 7's code is in place; its full training run is done on a GPU machine with `scripts/train-jepa.sh` (D21).
 
 ## Session prompt (paste this)
 
