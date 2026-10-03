@@ -15,10 +15,10 @@ use arrow_array::builder::{
 };
 use arrow_array::cast::AsArray;
 use arrow_array::types::{
-    Float32Type, TimestampNanosecondType, UInt8Type, UInt16Type, UInt32Type, UInt64Type,
+    Float32Type, TimestampMicrosecondType, UInt8Type, UInt16Type, UInt32Type, UInt64Type,
 };
 use arrow_array::{
-    Array, ArrayRef, RecordBatch, StringArray, StructArray, TimestampNanosecondArray,
+    Array, ArrayRef, RecordBatch, StringArray, StructArray, TimestampMicrosecondArray,
 };
 use arrow_schema::{DataType, Field, Fields, Schema, SchemaRef, TimeUnit};
 use parquet::arrow::ArrowWriter;
@@ -79,7 +79,7 @@ pub fn schema(params: Params) -> SchemaRef {
         utf8("split"),
         Field::new(
             "created_at",
-            DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".into())),
+            DataType::Timestamp(TimeUnit::Microsecond, Some("UTC".into())),
             false,
         ),
         utf8("tool_version"),
@@ -140,9 +140,14 @@ pub fn to_batch(
     }
     let tiers: StringArray = r.iter().map(|x| x.tier.map(|t| t.to_string())).collect();
     let m = |x: &Record| x.metrics;
-    let created_at =
-        TimestampNanosecondArray::from(r.iter().map(|x| x.created_at).collect::<Vec<_>>())
-            .with_timezone("UTC");
+    // Microseconds: Python's `datetime` cannot hold nanoseconds (the run's clock reading is
+    // truncated to whole microseconds, see `GenerateOptions::created_at`).
+    let created_at = TimestampMicrosecondArray::from(
+        r.iter()
+            .map(|x| x.created_at.div_euclid(1000))
+            .collect::<Vec<_>>(),
+    )
+    .with_timezone("UTC");
     let columns: Vec<ArrayRef> = vec![
         u64s(r.iter().map(|x| x.record_id)),
         strings(r.iter().map(|x| x.generator_id.as_str())),
@@ -222,7 +227,7 @@ pub fn from_batch(batch: &RecordBatch) -> io::Result<Vec<Record>> {
     let d2 = f32_col("metrics_dead_end_ratio_d2")?;
     let split = str_col("split")?;
     let created_at = col("created_at")?
-        .as_primitive::<TimestampNanosecondType>()
+        .as_primitive::<TimestampMicrosecondType>()
         .clone();
     let tool_version = str_col("tool_version")?;
 
@@ -277,7 +282,7 @@ pub fn from_batch(batch: &RecordBatch) -> io::Result<Vec<Record>> {
                     dead_end_ratio_d2: opt(&d2, i),
                 },
                 split: split.value(i).parse::<Split>().map_err(invalid)?,
-                created_at: created_at.value(i),
+                created_at: created_at.value(i) * 1000,
                 tool_version: tool_version.value(i).to_owned(),
             })
         })

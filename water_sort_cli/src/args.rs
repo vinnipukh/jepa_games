@@ -6,7 +6,7 @@ use core::str::FromStr;
 use clap::{Args, ValueEnum};
 use turan_water_sort::{Turan, TuranStrategy};
 use uniform_water_sort::Uniform;
-use water_sort_core::{Generator, Layout};
+use water_sort_core::{GenConfig, GenError, GeneratedPuzzle, Generator, Layout, Params};
 
 /// Which generator a command runs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
@@ -66,6 +66,56 @@ impl GenSpec {
         match self {
             Self::Uniform(g) => g.layout,
             Self::Turan(g) => g.layout,
+        }
+    }
+
+    /// The generator spec string that reproduces `self` (see the [`FromStr`] impl), with every
+    /// parameter spelled out, e.g. `turan:search:10000:depth=300:standard`.
+    pub fn spec_arg(self) -> String {
+        match self {
+            Self::Uniform(g) => format!("uniform:{}", g.layout),
+            Self::Turan(g) => match g.strategy {
+                TuranStrategy::Scramble {
+                    steps,
+                    max_extra_steps,
+                } => format!(
+                    "turan:scramble:{steps}:extra={max_extra_steps}:{}",
+                    g.layout
+                ),
+                TuranStrategy::Constrained => format!("turan:constrained:{}", g.layout),
+                TuranStrategy::PourWalk { steps } => format!("turan:walk:{steps}:{}", g.layout),
+                TuranStrategy::ReverseSearch {
+                    max_depth,
+                    max_states,
+                } => format!("turan:search:{max_states}:depth={max_depth}:{}", g.layout),
+            },
+        }
+    }
+
+    pub const fn version(self) -> u32 {
+        match self {
+            Self::Uniform(_) => Uniform::VERSION,
+            Self::Turan(_) => Turan::VERSION,
+        }
+    }
+
+    /// The generator's own fresh seed (D7): OS entropy for uniform, the time seed for Turan.
+    pub fn fresh_seed(self, now_nanos: u64) -> Result<u64, GenError> {
+        match self {
+            Self::Uniform(g) => g.fresh_seed(now_nanos),
+            Self::Turan(g) => g.fresh_seed(now_nanos),
+        }
+    }
+
+    pub fn generate(
+        self,
+        params: &Params,
+        seed: u64,
+        cfg: &GenConfig,
+    ) -> Result<GeneratedPuzzle, GenError> {
+        match self {
+            Self::Uniform(g) => g.generate(params, seed, cfg),
+            Self::Turan(g) => g.generate(params, seed, cfg),
         }
     }
 
@@ -334,6 +384,22 @@ mod tests {
             "turan_pour_walk_distributed"
         );
         assert_eq!(slug("turan:search"), "turan_reverse_search_standard");
+        for s in [
+            "uniform",
+            "uniform:distributed",
+            "turan",
+            "turan:scramble:20:extra=5",
+            "turan:constrained:distributed",
+            "turan:walk:80:distributed",
+            "turan:search:1e3:depth=50:distributed",
+        ] {
+            let spec = s.parse::<GenSpec>().unwrap();
+            assert_eq!(spec.spec_arg().parse::<GenSpec>(), Ok(spec), "{s}");
+        }
+        assert_eq!(
+            "turan".parse::<GenSpec>().unwrap().spec_arg(),
+            "turan:search:10000:depth=300:standard"
+        );
     }
 
     #[test]

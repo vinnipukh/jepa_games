@@ -565,8 +565,8 @@ fn report(args: &CompareArgs, threads: usize, sections: &[String]) -> String {
          --max-attempts {} --min-opt {}{} --rollouts {} --base-seed {}` (release build, {threads} \
          threads). Both sides use the seeds `splitmix64(base_seed ^ i)`; every number except the \
          `ms` columns is deterministic.\n",
-        spec_arg(args.a),
-        spec_arg(args.b),
+        GenSpec::spec_arg(args.a),
+        GenSpec::spec_arg(args.b),
         configs.join(","),
         args.samples,
         cfg.max_states,
@@ -597,29 +597,6 @@ fn report(args: &CompareArgs, threads: usize, sections: &[String]) -> String {
         md.push_str(s);
     }
     md
-}
-
-/// The `--a`/`--b` value that reproduces `spec`.
-fn spec_arg(spec: GenSpec) -> String {
-    use turan_water_sort::TuranStrategy;
-    match spec {
-        GenSpec::Uniform(g) => format!("uniform:{}", g.layout),
-        GenSpec::Turan(g) => match g.strategy {
-            TuranStrategy::Scramble {
-                steps,
-                max_extra_steps,
-            } => format!(
-                "turan:scramble:{steps}:extra={max_extra_steps}:{}",
-                g.layout
-            ),
-            TuranStrategy::Constrained => format!("turan:constrained:{}", g.layout),
-            TuranStrategy::PourWalk { steps } => format!("turan:walk:{steps}:{}", g.layout),
-            TuranStrategy::ReverseSearch {
-                max_depth,
-                max_states,
-            } => format!("turan:search:{max_states}:depth={max_depth}:{}", g.layout),
-        },
-    }
 }
 
 #[cfg(test)]
