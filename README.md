@@ -17,7 +17,37 @@ world model on it.
   and trajectory logger.
 - **`web/`:** the browser game, the same Rust code compiled to WebAssembly with a small
   TypeScript front end. A seed or puzzle code opens the same puzzle there as in Python.
-- **Phase 7** (next): the JEPA itself.
+- **`python/jepa`** (Phase 7): the JEPA world model, latent planners (beam, MCTS, CEM), baselines
+  (random, greedy, solver, DDQN) and the evaluation pipeline.
+
+## Results (JEPA, `default` preset)
+
+6 colors × capacity 4 × 2 empty tubes, uniform generator, standard layout; one training seed,
+500 test puzzles, move limit 4 × optimal. Trained on an AMD RX 7900 XT (ROCm torch on Windows):
+JEPA ≈ 40 min, DDQN ≈ 9 min. Full report: [`reports/jepa_eval_default.md`](reports/jepa_eval_default.md).
+
+| policy | solved (uniform test) | stars | solved (Turan test, zero-shot) | stars |
+|---|---|---|---|---|
+| solver (optimal) | 100.0 % | 5.00 | 100.0 % | 5.00 |
+| **JEPA + MCTS** | 97.2 % | 4.77 | – | – |
+| **JEPA + beam** | 97.0 % | 4.76 | 99.4 % | 4.87 |
+| JEPA + CEM | 96.4 % | 4.76 | – | – |
+| DDQN | 96.6 % | 4.40 | 98.8 % | 4.64 |
+| greedy | 77.0 % | 3.22 | 86.6 % | 3.74 |
+| random | 72.6 % | 0.92 | 85.4 % | 1.08 |
+
+- The world model is not collapsed: the detached probe decodes states exactly (100 %), and the
+  1/2/3-step latent rollouts are 98.7 / 97.8 / 96.2 % exact.
+- Acceptance: probe exact match > 95 % **met**, planner > greedy **met**, effective rank > 50 % of
+  the latent dim **not met** (19.5 %; the probes are perfect, so the threshold is probably too high
+  for this puzzle size).
+- Beam, MCTS and CEM differ by less than the noise (about ±1.6 points at 500 puzzles); search
+  depth and revisit checks change nothing, so the value head carries the planning signal. Scoring
+  by the solved flag alone drops to 56 %.
+- The Turan test set (6 × 4 × 2, standard, 500 puzzles) is *easier* than the uniform one (random
+  and greedy both score higher), so the numbers are not a harder-distribution result. Models were
+  trained on uniform only. Not done yet: multiple seeds, other generators and layouts (the `full`
+  preset).
 
 ## Quick start
 

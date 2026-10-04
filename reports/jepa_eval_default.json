@@ -1,0 +1,959 @@
+{
+ "info": {
+  "preset": {
+   "name": "default",
+   "params": [
+    6,
+    4,
+    2
+   ],
+   "generators": [
+    "uniform"
+   ],
+   "layouts": [
+    "standard"
+   ],
+   "count": {
+    "uniform": 100000,
+    "turan": 60000
+   },
+   "master_seed": 7,
+   "train_puzzles": 40000,
+   "val_puzzles": 4000,
+   "epsilon": 0.2,
+   "seeds": [
+    0
+   ],
+   "train": {
+    "epochs": 10,
+    "batch_size": 1024,
+    "lr": 0.0005,
+    "warmup_steps": 1000
+   },
+   "dqn_sets": [
+    [
+     "uniform",
+     "standard"
+    ]
+   ],
+   "dqn": {
+    "total_steps": 3000000
+   },
+   "eval": {
+    "puzzles": 500,
+    "move_limit_k": 4,
+    "policy_seed": 0,
+    "batch": 256
+   },
+   "plan": {
+    "method": "beam",
+    "score": "value",
+    "legality": "head",
+    "depth": 4,
+    "consistent": true,
+    "width": 16,
+    "revisits": "real",
+    "mcts_simulations": 64,
+    "mcts_c": 1.5,
+    "cem_samples": 256,
+    "cem_elites": 32,
+    "cem_iters": 3,
+    "solved_threshold": 0.5
+   },
+   "extra_planners": {
+    "beam-d1": {
+     "depth": 1
+    },
+    "beam-d2": {
+     "depth": 2
+    },
+    "beam-inconsistent": {
+     "consistent": false
+    },
+    "beam-solved-score": {
+     "score": "solved"
+    },
+    "beam-probe-legality": {
+     "legality": "probe"
+    },
+    "beam-model-revisits": {
+     "revisits": "probe"
+    },
+    "beam-no-revisits": {
+     "revisits": "off"
+    },
+    "mcts": {
+     "method": "mcts"
+    },
+    "cem": {
+     "method": "cem"
+    }
+   },
+   "extra_puzzles": 500,
+   "default": [
+    "uniform",
+    "standard"
+   ],
+   "datasets": {},
+   "ablations": {}
+  },
+  "command": "python.exe -m jepa.pipeline --preset default --device cuda --extra-puzzles 500 --stages eval report --report reports/jepa_eval_default.md",
+  "torch": "2.9.1+rocm7.2.1",
+  "device": "cuda",
+  "cuda_device": "AMD Radeon RX 7900 XT",
+  "wall_secs_this_invocation": 315.3579840660095
+ },
+ "bucket_edges": [
+  17.0,
+  18.0,
+  19.0
+ ],
+ "bucket_weights": [
+  0.384,
+  0.232,
+  0.238,
+  0.146
+ ],
+ "runs": {
+  "uniform_standard": [
+   {
+    "z_std_mean": 0.6093219518661499,
+    "z_std_min": 0.18465930223464966,
+    "effective_rank": 24.967716217041016,
+    "effective_rank_frac": 0.19506028294563293,
+    "token_effective_rank": 44.22481918334961,
+    "collapse_alert": 0.0,
+    "probe_cell_acc": 0.9999923706054688,
+    "probe_exact": 0.999755859375,
+    "idm_acc": 1.0,
+    "legal_acc": 1.0,
+    "legal_exact": 1.0,
+    "solved_acc": 1.0,
+    "solved_recall": 1.0,
+    "value_mae": 0.28696757555007935,
+    "pred1_exact": 0.98681640625,
+    "pred1_solved_acc": 1.0,
+    "pred2_exact": 0.9779969453811646,
+    "pred3_exact": 0.961578905582428,
+    "epoch": 10,
+    "step": 30760,
+    "epoch_secs": 221.7275676727295,
+    "train_secs": 2340.3174381256104
+   }
+  ]
+ },
+ "groups": [
+  {
+   "policy": "random",
+   "train": null,
+   "test": "uniform_standard",
+   "seeds": [
+    {
+     "overall": {
+      "n": 500,
+      "solve_rate": 0.726,
+      "mean_stars": 0.924,
+      "ratio_solved": 1.9214324869021284,
+      "ratio_all": 2.4909599854909454
+     },
+     "buckets": [
+      {
+       "n": 192,
+       "solve_rate": 0.8072916666666666,
+       "mean_stars": 0.984375,
+       "ratio_solved": 2.0091174732920463,
+       "ratio_all": 2.3927771268763913
+      },
+      {
+       "n": 116,
+       "solve_rate": 0.6982758620689655,
+       "mean_stars": 0.9051724137931034,
+       "ratio_solved": 1.8923182441700959,
+       "ratio_all": 2.5282567049808424
+      },
+      {
+       "n": 119,
+       "solve_rate": 0.6974789915966386,
+       "mean_stars": 0.9663865546218487,
+       "ratio_solved": 1.8040583386176279,
+       "ratio_all": 2.4683768244139768
+      },
+      {
+       "n": 73,
+       "solve_rate": 0.6027397260273972,
+       "mean_stars": 0.726027397260274,
+       "ratio_solved": 1.8875491932310118,
+       "ratio_all": 2.7267419794817056
+      }
+     ],
+     "generators": {
+      "uniform": {
+       "n": 500,
+       "solve_rate": 0.726,
+       "mean_stars": 0.924,
+       "ratio_solved": 1.9214324869021284,
+       "ratio_all": 2.4909599854909454
+      }
+     },
+     "matched_solve_rate": 0.7259999999999999,
+     "leaked": 0,
+     "seed": null
+    }
+   ]
+  },
+  {
+   "policy": "greedy",
+   "train": null,
+   "test": "uniform_standard",
+   "seeds": [
+    {
+     "overall": {
+      "n": 500,
+      "solve_rate": 0.77,
+      "mean_stars": 3.224,
+      "ratio_solved": 1.0646887767163389,
+      "ratio_all": 1.7398103580715811
+     },
+     "buckets": [
+      {
+       "n": 192,
+       "solve_rate": 0.8229166666666666,
+       "mean_stars": 3.4583333333333335,
+       "ratio_solved": 1.0705706260108718,
+       "ratio_all": 1.5893237443214463
+      },
+      {
+       "n": 116,
+       "solve_rate": 0.7758620689655172,
+       "mean_stars": 3.2758620689655173,
+       "ratio_solved": 1.0598765432098765,
+       "ratio_all": 1.7188697318007664
+      },
+      {
+       "n": 119,
+       "solve_rate": 0.7142857142857143,
+       "mean_stars": 2.991596638655462,
+       "ratio_solved": 1.0569659442724457,
+       "ratio_all": 1.8978328173374615
+      },
+      {
+       "n": 73,
+       "solve_rate": 0.7123287671232876,
+       "mean_stars": 2.904109589041096,
+       "ratio_solved": 1.0677697302697304,
+       "ratio_all": 1.9112880270414518
+      }
+     ],
+     "generators": {
+      "uniform": {
+       "n": 500,
+       "solve_rate": 0.77,
+       "mean_stars": 3.224,
+       "ratio_solved": 1.0646887767163389,
+       "ratio_all": 1.7398103580715811
+      }
+     },
+     "matched_solve_rate": 0.7699999999999999,
+     "leaked": 0,
+     "seed": null
+    }
+   ]
+  },
+  {
+   "policy": "solver",
+   "train": null,
+   "test": "uniform_standard",
+   "seeds": [
+    {
+     "overall": {
+      "n": 500,
+      "solve_rate": 1.0,
+      "mean_stars": 5.0,
+      "ratio_solved": 1.0,
+      "ratio_all": 1.0
+     },
+     "buckets": [
+      {
+       "n": 192,
+       "solve_rate": 1.0,
+       "mean_stars": 5.0,
+       "ratio_solved": 1.0,
+       "ratio_all": 1.0
+      },
+      {
+       "n": 116,
+       "solve_rate": 1.0,
+       "mean_stars": 5.0,
+       "ratio_solved": 1.0,
+       "ratio_all": 1.0
+      },
+      {
+       "n": 119,
+       "solve_rate": 1.0,
+       "mean_stars": 5.0,
+       "ratio_solved": 1.0,
+       "ratio_all": 1.0
+      },
+      {
+       "n": 73,
+       "solve_rate": 1.0,
+       "mean_stars": 5.0,
+       "ratio_solved": 1.0,
+       "ratio_all": 1.0
+      }
+     ],
+     "generators": {
+      "uniform": {
+       "n": 500,
+       "solve_rate": 1.0,
+       "mean_stars": 5.0,
+       "ratio_solved": 1.0,
+       "ratio_all": 1.0
+      }
+     },
+     "matched_solve_rate": 1.0,
+     "leaked": 0,
+     "seed": null
+    }
+   ]
+  },
+  {
+   "policy": "ddqn",
+   "train": "uniform_standard",
+   "test": "uniform_standard",
+   "seeds": [
+    {
+     "overall": {
+      "n": 500,
+      "solve_rate": 0.966,
+      "mean_stars": 4.4,
+      "ratio_solved": 1.0275061276246304,
+      "ratio_all": 1.1285709192853928
+     },
+     "buckets": [
+      {
+       "n": 192,
+       "solve_rate": 0.9791666666666666,
+       "mean_stars": 4.46875,
+       "ratio_solved": 1.0286218435819499,
+       "ratio_all": 1.0905255551739925
+      },
+      {
+       "n": 116,
+       "solve_rate": 0.9568965517241379,
+       "mean_stars": 4.344827586206897,
+       "ratio_solved": 1.029029029029029,
+       "ratio_all": 1.157088122605364
+      },
+      {
+       "n": 119,
+       "solve_rate": 0.9495798319327731,
+       "mean_stars": 4.352941176470588,
+       "ratio_solved": 1.0246856078248718,
+       "ratio_all": 1.1747014595311809
+      },
+      {
+       "n": 73,
+       "solve_rate": 0.9726027397260274,
+       "mean_stars": 4.383561643835616,
+       "ratio_solved": 1.0266599597585513,
+       "ratio_all": 1.1081213307240705
+      }
+     ],
+     "generators": {
+      "uniform": {
+       "n": 500,
+       "solve_rate": 0.966,
+       "mean_stars": 4.4,
+       "ratio_solved": 1.0275061276246304,
+       "ratio_all": 1.1285709192853928
+      }
+     },
+     "matched_solve_rate": 0.966,
+     "leaked": 0,
+     "seed": 0
+    }
+   ]
+  },
+  {
+   "policy": "jepa-beam",
+   "train": "uniform_standard",
+   "test": "uniform_standard",
+   "seeds": [
+    {
+     "overall": {
+      "n": 500,
+      "solve_rate": 0.97,
+      "mean_stars": 4.762,
+      "ratio_solved": 1.0051353570909283,
+      "ratio_all": 1.0949812963782004
+     },
+     "buckets": [
+      {
+       "n": 192,
+       "solve_rate": 0.9947916666666666,
+       "mean_stars": 4.885416666666667,
+       "ratio_solved": 1.0055267133031223,
+       "ratio_all": 1.021122928338002
+      },
+      {
+       "n": 116,
+       "solve_rate": 0.9827586206896551,
+       "mean_stars": 4.818965517241379,
+       "ratio_solved": 1.0053606237816763,
+       "ratio_all": 1.056992337164751
+      },
+      {
+       "n": 119,
+       "solve_rate": 0.957983193277311,
+       "mean_stars": 4.705882352941177,
+       "ratio_solved": 1.0046168051708217,
+       "ratio_all": 1.1304732419283503
+      },
+      {
+       "n": 73,
+       "solve_rate": 0.9041095890410958,
+       "mean_stars": 4.438356164383562,
+       "ratio_solved": 1.0045093795093794,
+       "ratio_all": 1.2917482061317678
+      }
+     ],
+     "generators": {
+      "uniform": {
+       "n": 500,
+       "solve_rate": 0.97,
+       "mean_stars": 4.762,
+       "ratio_solved": 1.0051353570909283,
+       "ratio_all": 1.0949812963782004
+      }
+     },
+     "matched_solve_rate": 0.97,
+     "leaked": 0,
+     "seed": 0
+    }
+   ]
+  },
+  {
+   "policy": "jepa-beam-d1",
+   "train": "uniform_standard",
+   "test": "uniform_standard",
+   "seeds": [
+    {
+     "overall": {
+      "n": 500,
+      "solve_rate": 0.97,
+      "mean_stars": 4.762,
+      "ratio_solved": 1.0051353570909283,
+      "ratio_all": 1.0949812963782004
+     },
+     "buckets": [
+      {
+       "n": 192,
+       "solve_rate": 0.9947916666666666,
+       "mean_stars": 4.885416666666667,
+       "ratio_solved": 1.0055267133031223,
+       "ratio_all": 1.021122928338002
+      },
+      {
+       "n": 116,
+       "solve_rate": 0.9827586206896551,
+       "mean_stars": 4.818965517241379,
+       "ratio_solved": 1.0053606237816763,
+       "ratio_all": 1.056992337164751
+      },
+      {
+       "n": 119,
+       "solve_rate": 0.957983193277311,
+       "mean_stars": 4.705882352941177,
+       "ratio_solved": 1.0046168051708217,
+       "ratio_all": 1.1304732419283503
+      },
+      {
+       "n": 73,
+       "solve_rate": 0.9041095890410958,
+       "mean_stars": 4.438356164383562,
+       "ratio_solved": 1.0045093795093794,
+       "ratio_all": 1.2917482061317678
+      }
+     ],
+     "generators": {
+      "uniform": {
+       "n": 500,
+       "solve_rate": 0.97,
+       "mean_stars": 4.762,
+       "ratio_solved": 1.0051353570909283,
+       "ratio_all": 1.0949812963782004
+      }
+     },
+     "matched_solve_rate": 0.97,
+     "leaked": 0,
+     "seed": 0
+    }
+   ]
+  },
+  {
+   "policy": "jepa-beam-d2",
+   "train": "uniform_standard",
+   "test": "uniform_standard",
+   "seeds": [
+    {
+     "overall": {
+      "n": 500,
+      "solve_rate": 0.97,
+      "mean_stars": 4.762,
+      "ratio_solved": 1.0051353570909283,
+      "ratio_all": 1.0949812963782004
+     },
+     "buckets": [
+      {
+       "n": 192,
+       "solve_rate": 0.9947916666666666,
+       "mean_stars": 4.885416666666667,
+       "ratio_solved": 1.0055267133031223,
+       "ratio_all": 1.021122928338002
+      },
+      {
+       "n": 116,
+       "solve_rate": 0.9827586206896551,
+       "mean_stars": 4.818965517241379,
+       "ratio_solved": 1.0053606237816763,
+       "ratio_all": 1.056992337164751
+      },
+      {
+       "n": 119,
+       "solve_rate": 0.957983193277311,
+       "mean_stars": 4.705882352941177,
+       "ratio_solved": 1.0046168051708217,
+       "ratio_all": 1.1304732419283503
+      },
+      {
+       "n": 73,
+       "solve_rate": 0.9041095890410958,
+       "mean_stars": 4.438356164383562,
+       "ratio_solved": 1.0045093795093794,
+       "ratio_all": 1.2917482061317678
+      }
+     ],
+     "generators": {
+      "uniform": {
+       "n": 500,
+       "solve_rate": 0.97,
+       "mean_stars": 4.762,
+       "ratio_solved": 1.0051353570909283,
+       "ratio_all": 1.0949812963782004
+      }
+     },
+     "matched_solve_rate": 0.97,
+     "leaked": 0,
+     "seed": 0
+    }
+   ]
+  },
+  {
+   "policy": "jepa-beam-inconsistent",
+   "train": "uniform_standard",
+   "test": "uniform_standard",
+   "seeds": [
+    {
+     "overall": {
+      "n": 500,
+      "solve_rate": 0.962,
+      "mean_stars": 4.754,
+      "ratio_solved": 1.0032838634231824,
+      "ratio_all": 1.1171590766131014
+     },
+     "buckets": [
+      {
+       "n": 192,
+       "solve_rate": 0.9895833333333334,
+       "mean_stars": 4.890625,
+       "ratio_solved": 1.0035518944419874,
+       "ratio_all": 1.03476489554155
+      },
+      {
+       "n": 116,
+       "solve_rate": 0.9741379310344828,
+       "mean_stars": 4.810344827586207,
+       "ratio_solved": 1.003441494591937,
+       "ratio_all": 1.0809386973180077
+      },
+      {
+       "n": 119,
+       "solve_rate": 0.9495798319327731,
+       "mean_stars": 4.697478991596639,
+       "ratio_solved": 1.0027945971122498,
+       "ratio_all": 1.1539141972578506
+      },
+      {
+       "n": 73,
+       "solve_rate": 0.8904109589041096,
+       "mean_stars": 4.397260273972603,
+       "ratio_solved": 1.003076923076923,
+       "ratio_all": 1.3315068493150686
+      }
+     ],
+     "generators": {
+      "uniform": {
+       "n": 500,
+       "solve_rate": 0.962,
+       "mean_stars": 4.754,
+       "ratio_solved": 1.0032838634231824,
+       "ratio_all": 1.1171590766131014
+      }
+     },
+     "matched_solve_rate": 0.962,
+     "leaked": 0,
+     "seed": 0
+    }
+   ]
+  },
+  {
+   "policy": "jepa-beam-solved-score",
+   "train": "uniform_standard",
+   "test": "uniform_standard",
+   "seeds": [
+    {
+     "overall": {
+      "n": 500,
+      "solve_rate": 0.564,
+      "mean_stars": 0.862,
+      "ratio_solved": 2.143848998740393,
+      "ratio_all": 2.9531308352895813
+     },
+     "buckets": [
+      {
+       "n": 192,
+       "solve_rate": 0.6354166666666666,
+       "mean_stars": 0.9427083333333334,
+       "ratio_solved": 2.160752324258834,
+       "ratio_all": 2.8313113727061334
+      },
+      {
+       "n": 116,
+       "solve_rate": 0.5689655172413793,
+       "mean_stars": 0.9396551724137931,
+       "ratio_solved": 2.212121212121212,
+       "ratio_all": 2.9827586206896552
+      },
+      {
+       "n": 119,
+       "solve_rate": 0.5378151260504201,
+       "mean_stars": 0.7647058823529411,
+       "ratio_solved": 2.0978618421052633,
+       "ratio_all": 2.977001326846529
+      },
+      {
+       "n": 73,
+       "solve_rate": 0.410958904109589,
+       "mean_stars": 0.684931506849315,
+       "ratio_solved": 2.023015873015873,
+       "ratio_all": 3.1875407697325504
+      }
+     ],
+     "generators": {
+      "uniform": {
+       "n": 500,
+       "solve_rate": 0.564,
+       "mean_stars": 0.862,
+       "ratio_solved": 2.143848998740393,
+       "ratio_all": 2.9531308352895813
+      }
+     },
+     "matched_solve_rate": 0.564,
+     "leaked": 0,
+     "seed": 0
+    }
+   ]
+  },
+  {
+   "policy": "jepa-beam-probe-legality",
+   "train": "uniform_standard",
+   "test": "uniform_standard",
+   "seeds": [
+    {
+     "overall": {
+      "n": 500,
+      "solve_rate": 0.97,
+      "mean_stars": 4.762,
+      "ratio_solved": 1.0051353570909283,
+      "ratio_all": 1.0949812963782004
+     },
+     "buckets": [
+      {
+       "n": 192,
+       "solve_rate": 0.9947916666666666,
+       "mean_stars": 4.885416666666667,
+       "ratio_solved": 1.0055267133031223,
+       "ratio_all": 1.021122928338002
+      },
+      {
+       "n": 116,
+       "solve_rate": 0.9827586206896551,
+       "mean_stars": 4.818965517241379,
+       "ratio_solved": 1.0053606237816763,
+       "ratio_all": 1.056992337164751
+      },
+      {
+       "n": 119,
+       "solve_rate": 0.957983193277311,
+       "mean_stars": 4.705882352941177,
+       "ratio_solved": 1.0046168051708217,
+       "ratio_all": 1.1304732419283503
+      },
+      {
+       "n": 73,
+       "solve_rate": 0.9041095890410958,
+       "mean_stars": 4.438356164383562,
+       "ratio_solved": 1.0045093795093794,
+       "ratio_all": 1.2917482061317678
+      }
+     ],
+     "generators": {
+      "uniform": {
+       "n": 500,
+       "solve_rate": 0.97,
+       "mean_stars": 4.762,
+       "ratio_solved": 1.0051353570909283,
+       "ratio_all": 1.0949812963782004
+      }
+     },
+     "matched_solve_rate": 0.97,
+     "leaked": 0,
+     "seed": 0
+    }
+   ]
+  },
+  {
+   "policy": "jepa-beam-model-revisits",
+   "train": "uniform_standard",
+   "test": "uniform_standard",
+   "seeds": [
+    {
+     "overall": {
+      "n": 500,
+      "solve_rate": 0.97,
+      "mean_stars": 4.762,
+      "ratio_solved": 1.0051353570909283,
+      "ratio_all": 1.0949812963782004
+     },
+     "buckets": [
+      {
+       "n": 192,
+       "solve_rate": 0.9947916666666666,
+       "mean_stars": 4.885416666666667,
+       "ratio_solved": 1.0055267133031223,
+       "ratio_all": 1.021122928338002
+      },
+      {
+       "n": 116,
+       "solve_rate": 0.9827586206896551,
+       "mean_stars": 4.818965517241379,
+       "ratio_solved": 1.0053606237816763,
+       "ratio_all": 1.056992337164751
+      },
+      {
+       "n": 119,
+       "solve_rate": 0.957983193277311,
+       "mean_stars": 4.705882352941177,
+       "ratio_solved": 1.0046168051708217,
+       "ratio_all": 1.1304732419283503
+      },
+      {
+       "n": 73,
+       "solve_rate": 0.9041095890410958,
+       "mean_stars": 4.438356164383562,
+       "ratio_solved": 1.0045093795093794,
+       "ratio_all": 1.2917482061317678
+      }
+     ],
+     "generators": {
+      "uniform": {
+       "n": 500,
+       "solve_rate": 0.97,
+       "mean_stars": 4.762,
+       "ratio_solved": 1.0051353570909283,
+       "ratio_all": 1.0949812963782004
+      }
+     },
+     "matched_solve_rate": 0.97,
+     "leaked": 0,
+     "seed": 0
+    }
+   ]
+  },
+  {
+   "policy": "jepa-beam-no-revisits",
+   "train": "uniform_standard",
+   "test": "uniform_standard",
+   "seeds": [
+    {
+     "overall": {
+      "n": 500,
+      "solve_rate": 0.97,
+      "mean_stars": 4.762,
+      "ratio_solved": 1.0051353570909283,
+      "ratio_all": 1.0949812963782004
+     },
+     "buckets": [
+      {
+       "n": 192,
+       "solve_rate": 0.9947916666666666,
+       "mean_stars": 4.885416666666667,
+       "ratio_solved": 1.0055267133031223,
+       "ratio_all": 1.021122928338002
+      },
+      {
+       "n": 116,
+       "solve_rate": 0.9827586206896551,
+       "mean_stars": 4.818965517241379,
+       "ratio_solved": 1.0053606237816763,
+       "ratio_all": 1.056992337164751
+      },
+      {
+       "n": 119,
+       "solve_rate": 0.957983193277311,
+       "mean_stars": 4.705882352941177,
+       "ratio_solved": 1.0046168051708217,
+       "ratio_all": 1.1304732419283503
+      },
+      {
+       "n": 73,
+       "solve_rate": 0.9041095890410958,
+       "mean_stars": 4.438356164383562,
+       "ratio_solved": 1.0045093795093794,
+       "ratio_all": 1.2917482061317678
+      }
+     ],
+     "generators": {
+      "uniform": {
+       "n": 500,
+       "solve_rate": 0.97,
+       "mean_stars": 4.762,
+       "ratio_solved": 1.0051353570909283,
+       "ratio_all": 1.0949812963782004
+      }
+     },
+     "matched_solve_rate": 0.97,
+     "leaked": 0,
+     "seed": 0
+    }
+   ]
+  },
+  {
+   "policy": "jepa-mcts",
+   "train": "uniform_standard",
+   "test": "uniform_standard",
+   "seeds": [
+    {
+     "overall": {
+      "n": 500,
+      "solve_rate": 0.972,
+      "mean_stars": 4.774,
+      "ratio_solved": 1.005033833979769,
+      "ratio_all": 1.0888928866283354
+     },
+     "buckets": [
+      {
+       "n": 192,
+       "solve_rate": 0.9895833333333334,
+       "mean_stars": 4.848958333333333,
+       "ratio_solved": 1.006172416334955,
+       "ratio_all": 1.037358120331466
+      },
+      {
+       "n": 116,
+       "solve_rate": 0.9568965517241379,
+       "mean_stars": 4.706896551724138,
+       "ratio_solved": 1.0045045045045045,
+       "ratio_all": 1.1336206896551724
+      },
+      {
+       "n": 119,
+       "solve_rate": 0.9747899159663865,
+       "mean_stars": 4.798319327731092,
+       "ratio_solved": 1.0040834845735025,
+       "ratio_all": 1.0796107916850952
+      },
+      {
+       "n": 73,
+       "solve_rate": 0.9452054794520548,
+       "mean_stars": 4.6438356164383565,
+       "ratio_solved": 1.0043478260869565,
+       "ratio_all": 1.1684931506849316
+      }
+     ],
+     "generators": {
+      "uniform": {
+       "n": 500,
+       "solve_rate": 0.972,
+       "mean_stars": 4.774,
+       "ratio_solved": 1.005033833979769,
+       "ratio_all": 1.0888928866283354
+      }
+     },
+     "matched_solve_rate": 0.972,
+     "leaked": 0,
+     "seed": 0
+    }
+   ]
+  },
+  {
+   "policy": "jepa-cem",
+   "train": "uniform_standard",
+   "test": "uniform_standard",
+   "seeds": [
+    {
+     "overall": {
+      "n": 500,
+      "solve_rate": 0.964,
+      "mean_stars": 4.76,
+      "ratio_solved": 1.0037000031504195,
+      "ratio_all": 1.1115668030370043
+     },
+     "buckets": [
+      {
+       "n": 192,
+       "solve_rate": 0.9895833333333334,
+       "mean_stars": 4.875,
+       "ratio_solved": 1.0049172563762345,
+       "ratio_all": 1.0361160349556489
+      },
+      {
+       "n": 116,
+       "solve_rate": 0.9741379310344828,
+       "mean_stars": 4.818965517241379,
+       "ratio_solved": 1.0029498525073748,
+       "ratio_all": 1.0804597701149425
+      },
+      {
+       "n": 119,
+       "solve_rate": 0.957983193277311,
+       "mean_stars": 4.739495798319328,
+       "ratio_solved": 1.002770083102493,
+       "ratio_all": 1.1287041132242372
+      },
+      {
+       "n": 73,
+       "solve_rate": 0.8904109589041096,
+       "mean_stars": 4.397260273972603,
+       "ratio_solved": 1.0030769230769232,
+       "ratio_all": 1.3315068493150686
+      }
+     ],
+     "generators": {
+      "uniform": {
+       "n": 500,
+       "solve_rate": 0.964,
+       "mean_stars": 4.76,
+       "ratio_solved": 1.0037000031504195,
+       "ratio_all": 1.1115668030370043
+      }
+     },
+     "matched_solve_rate": 0.964,
+     "leaked": 0,
+     "seed": 0
+    }
+   ]
+  }
+ ]
+}

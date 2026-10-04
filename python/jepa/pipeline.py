@@ -435,8 +435,11 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--seeds", type=int, nargs="+", help="override the preset's training seeds")
     ap.add_argument("--workers", type=int, help="processes for trajectory collection")
     ap.add_argument("--report", help="also copy report.md / report.json here (e.g. reports/jepa_eval.md)")
+    ap.add_argument("--extra-puzzles", type=int, help="test puzzles per planner variant (preset default 200)")
     a = ap.parse_args(argv)
     preset = copy.deepcopy(PRESETS[a.preset])
+    if a.extra_puzzles:
+        preset.extra_puzzles = a.extra_puzzles
     if a.seeds:
         preset.seeds = tuple(a.seeds)
     out = Path(a.out) if a.out else REPO / "data" / "jepa" / preset.name
