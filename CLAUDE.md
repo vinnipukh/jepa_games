@@ -67,7 +67,6 @@ The toolchain is pinned in `rust-toolchain.toml` (1.99.0). `Cargo.lock` is commi
 
 ## Workflow
 
-- One phase per branch and PR: branch `phase-N-<name>` from an up-to-date `main`, PR into `main`. Small follow-ups go on their own branch and PR.
 - One focused commit per plan task, conventional commit messages (`feat`, `fix`, `test`, `docs`, `chore`, `ci`).
 - After every task, fmt, clippy and tests must pass locally. CI (ubuntu, windows, heavy-tests) must be green before merging.
 - Tick the plan's checkboxes and the roadmap items as you go; update the phase status in `docs/README.md` at the end.
