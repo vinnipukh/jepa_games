@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gamestack"
+description = "RL environment stack (puzzles, board and card games, games with worlds) with a Gymnasium and an LLM text interface"
+requires-python = ">=3.10"
+license = "MIT"
+dependencies = ["numpy>=1.26", "gymnasium>=1.0"]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+chess = ["chess>=1.10"]
+crafter = ["crafter>=1.8"]
+test = ["pytest>=8"]
+all = ["chess>=1.10", "crafter>=1.8"]
+
+[tool.setuptools]
+packages = ["gamestack", "gamestack.games"]
+
+[tool.setuptools.dynamic]
+version = { attr = "gamestack.__version__" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -17,6 +17,7 @@ Each phase has its own folder under `phases/` with two files:
 | 5 | [Python binding and Gymnasium env](phases/phase-5-python/PLAN.md) | [prompt](phases/phase-5-python/START_PROMPT.md) | 1–4 | done (2026-10-03) |
 | 6 | [Web UI (WASM)](phases/phase-6-web/PLAN.md) | [prompt](phases/phase-6-web/START_PROMPT.md) | 1–3, 5 | done (2026-10-03); live at https://vinnipukh.github.io/jepa_games/ |
 | 7 | [JEPA preparation](phases/phase-7-jepa/PLAN.md) | [prompt](phases/phase-7-jepa/START_PROMPT.md) | 4, 5 | infrastructure done (2026-10-03); `default`-preset run done (2026-10-04, [report](../reports/jepa_eval_default.md), D22); `full` run pending (user's GPU: `scripts/train-jepa.sh`) |
+| 8 | [Game stack](../gamestack/README.md) | — | 5, 7 | started (2026-11-23, D23): water sort, sudoku, flappy, pointer ×2, chess, go, uno, crafter + `MixEnv` done; OpenFront (clone, then real engine) and real Minecraft / horizon planned |
 
 Run phases in order, one PR per phase. A start prompt assumes all phases before it are merged into `main`. If an earlier phase recorded new decisions, read those in `decisions.md` too.
 
