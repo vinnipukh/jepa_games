@@ -14,10 +14,12 @@ dynamic = ["version"]
 chess = ["chess>=1.10"]
 crafter = ["crafter>=1.8"]
 test = ["pytest>=8"]
+rl = ["torch>=2.4", "transformers>=4.40"]
+data = ["datasets>=2.18"]
 all = ["chess>=1.10", "crafter>=1.8"]
 
 [tool.setuptools]
-packages = ["gamestack", "gamestack.games"]
+packages = ["gamestack", "gamestack.games", "gamestack.rl"]
 
 [tool.setuptools.dynamic]
 version = { attr = "gamestack.__version__" }

@@ -18,6 +18,7 @@ _GAMES: dict[str, tuple[str, str, str]] = {
     "chess": ("gamestack.games.chess_env", "ChessEnv", "pip install chess"),
     "go": ("gamestack.games.go", "GoEnv", ""),
     "crafter": ("gamestack.games.crafter_env", "CrafterGame", "pip install crafter"),
+    "classify": ("gamestack.games.classify", "ClassificationEnv", ""),
     "uno": ("gamestack.games.uno", "UnoEnv", ""),
 }
 

@@ -22,6 +22,7 @@ prompt, info = mix.reset(seed=0)
 | `chess` | python-chess | done |
 | `go` (5/7/9) | own | done |
 | `uno` | own | done |
+| `classify` (topic / majority / parity, or any HF dataset) | own | done |
 | `crafter` (Minecraft-like) | crafter | done |
 | `openfront` clone | own | planned |
 | `openfront` real engine | OpenFrontIO (AGPL, external process) | planned |
@@ -37,3 +38,21 @@ python -m pytest                                  # water_sort is skipped withou
 
 Add a game: subclass `GameEnv` (`gamestack/core.py`), register it in `gamestack/registry.py`, and the contract tests pick it up.
 See `docs/decisions.md` D23.
+
+## Training a decision model (`gamestack.rl`)
+
+Every env's discrete action space is a logit vector, so one interface serves a BERT-style classifier
+(logits = head outputs) and an LLM (logits = log-probability of each action's text):
+
+```python
+from gamestack import make
+from gamestack.rl.policy import HFClassifierPolicy, CausalLMPolicy
+from gamestack.rl.grpo import GRPOConfig, grpo_step
+policy = HFClassifierPolicy(bert_with_num_labels_4, tokenizer)          # or CausalLMPolicy(lm, tok, env.action_names(), n)
+opt = torch.optim.AdamW(policy.parameters(), lr=2e-5)
+grpo_step(policy, opt, lambda: make("classify", task="topic", n_classes=4), seeds, GRPOConfig())
+```
+
+`python -m gamestack.rl.calibrate --game classify --grid '[{"noise":0.2},{"noise":0.7}]'` prints pass rates per
+setting, to keep tasks a model solves sometimes (10 to 90 %). Real data: `ClassificationEnv.from_hf("ag_news", text_col="text")`.
+RL extras: `pip install -e '.[rl,data]'`.
