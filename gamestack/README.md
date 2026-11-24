@@ -56,3 +56,10 @@ grpo_step(policy, opt, lambda: make("classify", task="topic", n_classes=4), seed
 `python -m gamestack.rl.calibrate --game classify --grid '[{"noise":0.2},{"noise":0.7}]'` prints pass rates per
 setting, to keep tasks a model solves sometimes (10 to 90 %). Real data: `ClassificationEnv.from_hf("ag_news", text_col="text")`.
 RL extras: `pip install -e '.[rl,data]'`.
+
+### Calibrated decisions (RLCD)
+
+For models that must report honest probabilities (Laya-style decision engines), use `gamestack.rl.rlcd`: the policy
+reports a distribution, Gaussian noise on the logits explores, the reward is a strictly proper scoring rule (log +
+spherical, ranked probability score for the `ordinal` task), the update is REINFORCE with a group-mean baseline.
+`gamestack.rl.calibration` has ECE, Brier, NLL, `fit_temperature` and selective accuracy at a target risk.

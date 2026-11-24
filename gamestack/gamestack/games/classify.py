@@ -11,6 +11,9 @@ Tasks (procedural, deterministic per seed, with difficulty knobs):
 * ``topic``: each class owns a keyword pool; a sentence mixes ``n_words`` words, a fraction
   ``noise`` of which come from other classes. Harder = more noise, more classes, fewer words.
 * ``majority``: a bag of words from ``n_classes`` symbols; the label is the most frequent one.
+* ``ordinal``: ordered levels; each word carries a level equal to the true one, or off by one with
+  probability ``noise``. Use the ranked probability score (``env.ordinal`` is True): wrong-by-one beats
+  wrong-by-three.
 * ``parity``: a binary string; the label is its parity (hard for bag-of-words models; a useful
   probe of whether a model really reads the input).
 
@@ -51,7 +54,7 @@ class ClassificationEnv(GameEnv):
         max_chars: int = 4096,
     ):
         super().__init__()
-        assert task in ("topic", "majority", "parity", "data")
+        assert task in ("topic", "majority", "parity", "ordinal", "data")
         self.task = "data" if data is not None else task
         self.n_words, self.noise, self.pool_size = n_words, noise, pool_size
         self.wrong_reward, self.max_attempts = wrong_reward, max_attempts
@@ -61,6 +64,9 @@ class ClassificationEnv(GameEnv):
         else:
             self.n_classes = 2 if task == "parity" else n_classes
             self.label_names = [f"class{i}" for i in range(self.n_classes)]
+        self.ordinal = self.task == "ordinal"
+        if self.ordinal:
+            self.label_names = [f"level{i}" for i in range(self.n_classes)]
         self.action_space = spaces.Discrete(self.n_classes)
         self.observation_space = spaces.Text(max_length=max_chars, charset=string.printable)
         self.text = ""
@@ -104,6 +110,15 @@ class ClassificationEnv(GameEnv):
                 else:
                     c = self.label
                 words.append(pools[c][int(rng.integers(self.pool_size))])
+            self.text = " ".join(words)
+        elif self.task == "ordinal":
+            self.label = int(rng.integers(self.n_classes))
+            words = []
+            for _ in range(self.n_words):
+                lv = self.label
+                if rng.random() < self.noise:
+                    lv = int(np.clip(lv + (1 if rng.random() < 0.5 else -1), 0, self.n_classes - 1))
+                words.append(f"w{lv}x{int(rng.integers(self.pool_size))}")
             self.text = " ".join(words)
         elif self.task == "majority":
             symbols = [f"s{i}" for i in range(self.n_classes)]
